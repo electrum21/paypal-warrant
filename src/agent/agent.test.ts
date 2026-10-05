@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { openDb } from "../db/index.js";
-import { DEMO_CATALOG, newAgent, planShoppingRequest, SCENARIOS, type Scenario } from "./buyer.js";
+import { DEMO_CATALOG, newAgent, newUser, planShoppingRequest, SCENARIOS, type Scenario } from "./buyer.js";
 import { runOffline } from "./offline.js";
 
 describe("demo scenarios through the real pipeline", () => {
@@ -20,13 +20,13 @@ describe("demo scenarios through the real pipeline", () => {
     expect((await runOffline("category", { db, agent })).proposal.id).toBe(3);
   });
   it("turns a natural-language request into a signed, budget-aware plan", () => {
-    const plan = planShoppingRequest("Buy trail running shoes under $120", newAgent(), "warrant-demo-merchant", DEMO_CATALOG);
+    const plan = planShoppingRequest("Buy trail running shoes under $120", newUser(), newAgent(), "warrant-demo-merchant", DEMO_CATALOG);
     expect(plan.product.id).toBe("trail-a");
     expect(plan.intent.maxAmountCents).toBe(12000);
     expect(plan.mandate.mandate.allowedCategories).toEqual(["footwear"]);
   });
   it("refuses a shopping request when no eligible product exists", () => {
-    expect(() => planShoppingRequest("Buy trail running shoes under $50", newAgent(), "warrant-demo-merchant", DEMO_CATALOG))
+    expect(() => planShoppingRequest("Buy trail running shoes under $50", newUser(), newAgent(), "warrant-demo-merchant", DEMO_CATALOG))
       .toThrow("No product matched");
   });
 });

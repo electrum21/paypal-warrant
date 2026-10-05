@@ -8,7 +8,7 @@ checks the purchase against the mandate with plain code, and proposes a response
 > Status: the dispute pipeline is built. A webhook (or manual import) turns a dispute into a stored
 > **proposal**: signature check, mandate check, deterministic decision, evidence pack, and an AI-written
 > explanation. A merchant approves it on `/admin`; only then are calls made to the PayPal Disputes API.
-> Business logic is tested (46 tests). The Express routes, the admin page's connection to real routes, and
+> Business logic is tested (73 tests). The Express routes, the admin page's connection to real routes, and
 > **every PayPal call** (orders, webhooks, disputes) are **untested against the sandbox**. The Disputes API
 > request bodies in `src/paypal/disputes.ts` are unverified guesses from PayPal's docs.
 
@@ -37,22 +37,33 @@ Without a public webhook URL you can still test: import a sandbox dispute by its
 ## Demo and docs
 ```
 npm run demo:offline     # whole story, fake PayPal, no credentials
-npm run demo -- register # live: register the scripted buyer agent
+npm run demo -- register # live: register the demo user's key and the buyer agent's key
 npm run demo -- buy over # live: within | over | category
+npm run demo -- link-payment <VAULT_TOKEN_ID> # live: link a saved PayPal account (see docs/04)
+npm run demo -- buy-auto over # live: pay with no click; out-of-mandate buys are refused
 npm run demo -- buy-request "Buy trail running shoes under $120"
 npm run demo -- import <PAYPAL_DISPUTE_ID>
 ```
 Docs in `docs/`: project overview, plain-English summary, testing and usage guide.
+Sponsor adapters and setup notes are in `docs/08-sponsor-integrations.md`.
+
+Optional sponsor integrations:
+- Channel3 product discovery for natural-language buyer requests
+- Elastic indexing/search for agent investigation events
+- AG Grid dispute operations view
+- Zapier proposal notifications
+- Render deployment with persistent SQLite storage
+- Postman collection and APIMatic-ready `openapi.yaml`
 
 ## Flow
-1. Buyer agent `POST /api/checkout` with its signed mandate. Warrant verifies the signature, records findings, creates the PayPal order.
+1. Buyer agent `POST /api/checkout` with the **user-signed mandate** and an **agent-signed cart** (the exact purchase). Warrant verifies both signatures against the registered user and agent keys, checks the cart is bound to the mandate and matches the purchase, accepts each cart once, records findings, and creates the PayPal order.
 2. Buyer approves; `/paypal/return` captures and stores the capture ID.
 3. A dispute is raised on that capture. `CUSTOMER.DISPUTE.CREATED` (verified) or `POST /api/disputes/import` runs the pipeline.
 4. Merchant reviews the proposal on `/admin`, edits the note, approves or dismisses.
 5. On approve: evidence, offer or accept-claim is sent with a stable `PayPal-Request-Id`. Failures are recorded and retryable.
 
 ## Layout
-- `src/mandate/`  sign, verify and check mandates (ed25519, canonical JSON)
+- `src/mandate/`  sign, verify and check mandates and carts (ed25519, canonical JSON); `authorize.ts` checks who signed what
 - `src/disputes/` deterministic decision, evidence pack, and the service that proposes / approves / rejects
 - `src/ai/`       LLM drafting with validation and template fallback
 - `src/paypal/`   sandbox-pinned REST client, Disputes API client, webhook verification

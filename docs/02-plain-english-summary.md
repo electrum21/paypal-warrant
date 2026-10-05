@@ -21,7 +21,7 @@ Now imagine you run the online shop that sold those shoes. A few weeks later, th
 | What happened | What Warrant suggests | Why |
 |---|---|---|
 | The assistant bought $115 shoes; the limit was $120. Buyer disputes. | **Fight the dispute.** | The buyer's own signed instructions allowed it. |
-| The assistant bought $135 shoes; the limit was $120. Buyer disputes. | **Offer to refund $15.** | The first $120 was authorized; the extra $15 wasn't. A fair offer is more likely to settle things. |
+| The assistant bought $135 shoes; the limit was $120. Buyer disputes. | **Suggest refunding the $15 extra.** | The first $120 was authorized; the extra $15 wasn't. PayPal's test system only lets the shop concede the whole payment at this stage, so Warrant shows the suggestion and tells the shop owner to refund the $15 themselves in PayPal. It never sends something PayPal would reject. |
 | The assistant bought a $115 gadget; the slip only covered shoes. Buyer disputes. | **Accept the claim.** | The purchase went beyond what the buyer allowed. Fighting it would be weak. |
 
 ## Where the AI comes in, and where it doesn't
@@ -36,13 +36,19 @@ We designed it this way on purpose: when money is involved, we want the judgment
 
 - The permission-slip signing and checking works and is tested.
 - The rule-based decisions work and are tested.
-- The review screen for the shop owner exists and works against a pretend PayPal.
-- A pretend shopper (a scripted assistant) can run through all three examples above.
-- You can watch the whole story run on your computer today, with no PayPal account, using one command (`npm run demo:offline`).
+- The review screen for the shop owner works against PayPal's test environment.
+- A pretend shopper (a scripted assistant) can run through all three examples above, and can also turn a plain request like "buy trail running shoes under $120" into a signed permission slip and a real test purchase.
+- A buyer can connect a PayPal Sandbox payment method through PayPal Vault. Once connected, the saved payment method can be charged by the autonomous-payment path without another buyer approval click.
+- **It has been run against PayPal's test environment (the "sandbox").** A test purchase was made, the buyer raised an "unauthorized" dispute, Warrant matched it to the signed slip, and the shop owner's approval sent the response to PayPal. Two of the three responses worked: fighting the dispute (PayPal accepted the evidence and put the case under review) and accepting it (the buyer was refunded). The third, offering a partial refund, isn't available from PayPal for this kind of dispute, which is why Warrant shows it as a suggestion only.
+- Three optional add-ons were each run live: real product search (Channel3), a searchable log of the shop-side agent's steps (Elastic), and a notification when a suggestion is ready (Zapier).
+- You can also watch the whole story run on your computer with no PayPal account, using one command (`npm run demo:offline`).
 
 ## What is not done or not proven yet
 
-- **Nothing has been tried against PayPal's real test environment (the "sandbox") yet.** That is the next big step, and some details of how PayPal's dispute system accepts our responses are still guesses.
+- **Automatic alerts from PayPal haven't been tried.** In the tests, a person imported each dispute by hand; the "webhook" that would do it automatically needs a public web address and hasn't been set up.
+- **The permission slip is signed by the shopper's assistant, not by the buyer personally.** So it proves the assistant issued it, not that the human did. Having the buyer's own key sign it is the most important next step.
+- **The default demo uses a person clicking "Pay Now."** Warrant also supports connecting a PayPal Vault payment method for autonomous payment; the connection and full browser-driven no-click checkout have been verified in the sandbox.
+- **The product category is whatever the assistant says it is.** Warrant doesn't check that a "shoe" is really a shoe.
 - It is a hackathon project, so it only ever talks to PayPal's test environment, never real money.
 - We built both the shopper's assistant and the shop's side ourselves; PayPal's real dispute process isn't re-created beyond what the test environment offers.
 - Our permission-slip format is *inspired by* an industry proposal for agent payments (AP2), but it is not the official standard.

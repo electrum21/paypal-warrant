@@ -12,6 +12,7 @@
     "db:init": "tsx src/db/init.ts",
     "smoke:auth": "tsx src/scripts/smoke-auth.ts",
     "smoke:order": "tsx src/scripts/smoke-order.ts",
+    "smoke:vault": "tsx src/scripts/smoke-vault.ts",
     "demo": "tsx src/scripts/demo.ts",
     "demo:offline": "tsx src/scripts/demo-offline.ts"
   },

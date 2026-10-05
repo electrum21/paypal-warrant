@@ -1,0 +1,380 @@
+openapi: 3.0.3
+info:
+  title: Warrant API
+  version: 0.1.0
+  description: Signed-mandate checkout and human-approved PayPal dispute defense.
+servers:
+  - url: http://localhost:8787
+security:
+  - AdminToken: []
+paths:
+  /health:
+    get:
+      security: []
+      responses:
+        "200": { description: Feature flags }
+  /webhooks/paypal:
+    post:
+      security: []
+      description: >
+        Receives PayPal webhook events. The raw request body is preserved while PayPal's verification endpoint
+        validates the transmission. Events are stored for audit; only newly received, verified
+        CUSTOMER.DISPUTE.CREATED events start dispute proposal processing. Repeated event IDs are acknowledged
+        but not processed again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id, event_type]
+              properties:
+                id: { type: string }
+                event_type: { type: string }
+                resource: { type: object, additionalProperties: true }
+      responses:
+        "200": { description: Event accepted and recorded }
+        "400": { description: Invalid JSON or missing event id/type }
+  /api/catalog/search:
+    post:
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogSearch"
+      responses:
+        "200": { description: Product candidates }
+  /api/checkout:
+    post:
+      security: []
+      description: >
+        A buyer agent presents the mandate the USER signed and a cart the AGENT signed. Both signatures are
+        verified against registered keys, the cart must refer to the mandate and match the purchase, and each
+        cart is accepted once.
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/CheckoutRequest" } }
+      responses:
+        "201": { description: PayPal order created }
+        "400": { description: Invalid request, or the authorization could not be verified (response lists the problems) }
+        "409": { description: Mandate id reused with different content, or the signed cart was already used }
+        "422": { description: Outside the mandate (only when ENFORCE_MANDATE=true) }
+  /api/me/session:
+    get:
+      security: []
+      description: Returns the signed-in user's session and current payment/shopping state.
+      responses:
+        "200":
+          description: Session state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401": { description: Not signed in }
+  /api/me/public-key:
+    post:
+      security: []
+      description: Registers the signed-in user's browser public key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, publicKeyPem]
+              properties:
+                userId: { type: string }
+                publicKeyPem: { type: string }
+                replaceExisting: { type: boolean }
+      responses:
+        "201": { description: Key registered }
+        "200": { description: Existing key confirmed }
+        "401": { description: Not signed in }
+        "403": { description: User ID does not match the session }
+  /api/me/payment/start:
+    post:
+      security: []
+      description: Starts the PayPal Vault setup-token approval flow for the signed-in user.
+      responses:
+        "200":
+          description: PayPal approval URL
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [approveUrl]
+                properties:
+                  approveUrl: { type: string, format: uri }
+        "401": { description: Not signed in }
+        "409": { description: Browser key is not connected }
+        "502": { description: PayPal did not provide an approval link }
+  /api/me/agent-key:
+    post:
+      security: []
+      description: Registers the signed-in user's browser shopping-agent public key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentId, publicKeyPem]
+              properties:
+                agentId: { type: string }
+                publicKeyPem: { type: string }
+                replaceExisting: { type: boolean }
+      responses:
+        "201": { description: Agent key registered }
+        "200": { description: Existing agent key confirmed }
+        "401": { description: Not signed in }
+        "403": { description: Agent belongs to another account }
+  /api/mandates/{id}/revoke:
+    post:
+      security: []
+      description: Revokes a mandate before a future autonomous charge.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignedControlBody" }
+      responses:
+        "200": { description: Mandate revoked or already revoked }
+        "400": { description: Invalid control request }
+        "401": { description: Invalid signature }
+        "403": { description: Mandate belongs to another user }
+  /api/users/{id}/pause-agent:
+    post:
+      security: []
+      description: Stops future autonomous shopping charges.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignedControlBody" }
+      responses:
+        "200": { description: Agent paused }
+        "401": { description: Invalid signature }
+  /api/users/{id}/resume-agent:
+    post:
+      security: []
+      description: Allows future autonomous shopping charges. Only the user signature is accepted.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignedControlBody" }
+      responses:
+        "200": { description: Agent resumed }
+        "401": { description: Invalid signature }
+        "403": { description: Admin cannot resume an agent }
+  /api/users/{id}/revoke-payment:
+    post:
+      security: []
+      description: Revokes the user's linked PayPal payment authorization.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignedControlBody" }
+      responses:
+        "200": { description: Payment authorization revoked }
+        "404": { description: No linked payment method }
+  /api/users/{id}/orders:
+    post:
+      security: []
+      description: Lists the signed-in user's purchase history.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignedControlBody" }
+      responses:
+        "200": { description: User order history }
+        "401": { description: Invalid signature }
+  /api/users/payment-token:
+    post:
+      description: Admin-only compatibility route for linking an existing PayPal payment-method token.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, tokenId]
+              properties:
+                userId: { type: string }
+                tokenId: { type: string }
+                paypalCustomerId: { type: string }
+                expiresAt: { type: string, format: date-time }
+      responses:
+        "201": { description: Payment method linked }
+        "409": { description: User key is not registered }
+  /api/mandate-uses:
+    get:
+      description: Admin-only list of autonomous mandate reservations and outcomes.
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: string, enum: [RESERVED, CAPTURED, UNKNOWN, RELEASED] } }
+      responses:
+        "200": { description: Mandate usage records }
+  /api/users:
+    post:
+      description: Register the public key a user's mandates must verify against.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, publicKeyPem]
+              properties:
+                userId: { type: string }
+                publicKeyPem: { type: string }
+      responses:
+        "201": { description: Registered }
+  /api/agents:
+    post:
+      description: Register the public key an agent's carts must verify against.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [agentId, publicKeyPem]
+              properties:
+                agentId: { type: string }
+                publicKeyPem: { type: string }
+      responses:
+        "201": { description: Registered }
+  /api/disputes:
+    get:
+      responses:
+        "200": { description: Dispute proposals }
+  /api/disputes/import:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paypalDisputeId]
+              properties:
+                paypalDisputeId: { type: string }
+      responses:
+        "201": { description: Proposal created }
+  /api/disputes/{id}/approve:
+    post:
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                note: { type: string }
+      responses:
+        "200": { description: Submitted or recorded failure }
+  /api/disputes/{id}/reject:
+    post:
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: Proposal rejected }
+components:
+  securitySchemes:
+    AdminToken:
+      type: apiKey
+      in: header
+      name: x-admin-token
+  schemas:
+    CheckoutRequest:
+      type: object
+      required: [signedMandate, signedCart, purchase]
+      properties:
+        mode:
+          type: string
+          enum: [approve, autonomous]
+          default: approve
+          description: >
+            approve returns a PayPal link for the buyer to click. autonomous charges the user's linked PayPal
+            account immediately and always refuses out-of-mandate purchases (422).
+        signedMandate:
+          type: object
+          description: Mandate plus its sha256 hash and an ed25519 signature made with the USER's key.
+          required: [mandate, mandateHash, signature]
+          properties:
+            mandate: { type: object }
+            mandateHash: { type: string }
+            signature: { type: string }
+        signedCart:
+          type: object
+          description: The exact purchase, bound to the mandate by id and hash, signed with the AGENT's key.
+          required: [cart, cartHash, signature]
+          properties:
+            cart: { type: object }
+            cartHash: { type: string }
+            signature: { type: string }
+        purchase:
+          type: object
+          required: [amountCents]
+          properties:
+            amountCents: { type: integer, minimum: 1 }
+            currency: { type: string }
+            category: { type: string }
+            description: { type: string, maxLength: 127 }
+    CatalogSearch:
+      type: object
+      required: [query, maxAmountCents]
+      properties:
+        query: { type: string }
+        maxAmountCents: { type: integer, minimum: 1 }
+        currency: { type: string, default: USD }
+        category: { type: string }
+    SignedControlBody:
+      type: object
+      required: [signedControl]
+      properties:
+        signedControl:
+          type: object
+          required: [request, signature]
+          properties:
+            request:
+              type: object
+              required: [action, userId, subjectId, issuedAt, nonce]
+              properties:
+                action: { type: string, enum: [revoke_mandate, pause_agent, resume_agent, revoke_payment_authorization, view_orders] }
+                userId: { type: string }
+                subjectId: { type: string }
+                reason: { type: string }
+                issuedAt: { type: string, format: date-time }
+                nonce: { type: string }
+            signature: { type: string }
+    Session:
+      type: object
+      required: [authenticated, userId, paymentConnected, automaticShopping]
+      properties:
+        authenticated: { type: boolean }
+        userId: { type: string }
+        email: { type: string, nullable: true }
+        displayName: { type: string, nullable: true }
+        paymentConnected: { type: boolean }
+        automaticShopping:
+          type: object
+          required: [paused]
+          properties:
+            paused: { type: boolean }
+            since: { type: string, format: date-time, nullable: true }
+            reason: { type: string, nullable: true }

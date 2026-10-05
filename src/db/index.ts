@@ -18,7 +18,12 @@ export function openDb(path = ":memory:"): Db {
   db.exec("PRAGMA foreign_keys = ON;");
   db.exec(readFileSync(new URL("./schema.sql", import.meta.url), "utf8"));
   // Migrations for databases created before these columns existed.
+  addColumnIfMissing(db, "agent_keys", "owner_user_id", "TEXT");
   addColumnIfMissing(db, "orders", "paypal_capture_id", "TEXT");
+  addColumnIfMissing(db, "orders", "cart_id", "TEXT");
+  addColumnIfMissing(db, "orders", "cart_json", "TEXT");
+  addColumnIfMissing(db, "payment_tokens", "status", "TEXT NOT NULL DEFAULT 'ACTIVE'");
+  addColumnIfMissing(db, "payment_tokens", "expires_at", "TEXT");
   addColumnIfMissing(db, "disputes", "workflow_state", "TEXT NOT NULL DEFAULT 'PROPOSED'");
   addColumnIfMissing(db, "disputes", "note_final", "TEXT");
   addColumnIfMissing(db, "disputes", "submit_error", "TEXT");
@@ -35,5 +40,6 @@ export function openDb(path = ":memory:"): Db {
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`);
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_capture ON orders(paypal_capture_id) WHERE paypal_capture_id IS NOT NULL");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_cart ON orders(cart_id) WHERE cart_id IS NOT NULL");
   return db;
 }

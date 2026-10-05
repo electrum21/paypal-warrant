@@ -1,0 +1,174 @@
+{
+  "info": {
+    "name": "Warrant API",
+    "_postman_id": "warrant-paypal-agent-demo",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8787" },
+    { "key": "adminToken", "value": "" },
+    { "key": "paypalDisputeId", "value": "" },
+    { "key": "userId", "value": "paypal:user-id" },
+    { "key": "mandateId", "value": "" },
+    { "key": "agentId", "value": "demo-buyer-agent" },
+    { "key": "paymentTokenId", "value": "" },
+    { "key": "signedControl", "value": "{}" },
+    { "key": "checkoutBody", "value": "{}" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": { "method": "GET", "url": "{{baseUrl}}/health" }
+    },
+    {
+      "name": "PayPal webhook",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "PayPal-Transmission-Id", "value": "transmission-id" },
+          { "key": "PayPal-Transmission-Time", "value": "2026-10-05T00:00:00Z" },
+          { "key": "PayPal-Auth-Algo", "value": "SHA256withRSA" },
+          { "key": "PayPal-Cert-Url", "value": "https://api-m.sandbox.paypal.com/v1/notifications/certs/CERT" },
+          { "key": "PayPal-Transmission-Sig", "value": "signature" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"id\":\"WH-1\",\"event_type\":\"CUSTOMER.DISPUTE.CREATED\",\"resource\":{\"dispute_id\":\"PP-R-EXAMPLE\"}}"
+        },
+        "url": "{{baseUrl}}/webhooks/paypal"
+      }
+    },
+    {
+      "name": "Search catalog",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"query\":\"trail running shoes\",\"maxAmountCents\":12000,\"currency\":\"USD\",\"category\":\"footwear\"}" },
+        "url": "{{baseUrl}}/api/catalog/search"
+      }
+    },
+    {
+      "name": "List disputes",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-admin-token", "value": "{{adminToken}}" }],
+        "url": "{{baseUrl}}/api/disputes"
+      }
+    },
+    {
+      "name": "Import dispute",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "x-admin-token", "value": "{{adminToken}}" }],
+        "body": { "mode": "raw", "raw": "{\"paypalDisputeId\":\"{{paypalDisputeId}}\"}" },
+        "url": "{{baseUrl}}/api/disputes/import"
+      }
+    },
+    {
+      "name": "User session",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/me/session"
+      }
+    },
+    {
+      "name": "Connect payment method",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{}" },
+        "url": "{{baseUrl}}/api/me/payment/start"
+      }
+    },
+    {
+      "name": "Register user public key",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"userId\":\"{{userId}}\",\"publicKeyPem\":\"-----BEGIN PUBLIC KEY-----\\n...\\n-----END PUBLIC KEY-----\"}" },
+        "url": "{{baseUrl}}/api/me/public-key"
+      }
+    },
+    {
+      "name": "Register agent public key",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{\"agentId\":\"{{agentId}}\",\"publicKeyPem\":\"-----BEGIN PUBLIC KEY-----\\n...\\n-----END PUBLIC KEY-----\"}" },
+        "url": "{{baseUrl}}/api/me/agent-key"
+      }
+    },
+    {
+      "name": "Autonomous checkout",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{{checkoutBody}}" },
+        "url": "{{baseUrl}}/api/checkout"
+      }
+    },
+    {
+      "name": "Pause automatic shopping",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{{signedControl}}" },
+        "url": "{{baseUrl}}/api/users/{{userId}}/pause-agent"
+      }
+    },
+    {
+      "name": "Allow automatic shopping",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{{signedControl}}" },
+        "url": "{{baseUrl}}/api/users/{{userId}}/resume-agent"
+      }
+    },
+    {
+      "name": "Revoke payment authorization",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{{signedControl}}" },
+        "url": "{{baseUrl}}/api/users/{{userId}}/revoke-payment"
+      }
+    },
+    {
+      "name": "Revoke mandate",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{{signedControl}}" },
+        "url": "{{baseUrl}}/api/mandates/{{mandateId}}/revoke"
+      }
+    },
+    {
+      "name": "List user orders",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{{signedControl}}" },
+        "url": "{{baseUrl}}/api/users/{{userId}}/orders"
+      }
+    },
+    {
+      "name": "Link existing payment token (admin)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "x-admin-token", "value": "{{adminToken}}" }],
+        "body": { "mode": "raw", "raw": "{\"userId\":\"{{userId}}\",\"tokenId\":\"{{paymentTokenId}}\"}" },
+        "url": "{{baseUrl}}/api/users/payment-token"
+      }
+    },
+    {
+      "name": "List mandate uses (admin)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-admin-token", "value": "{{adminToken}}" }],
+        "url": "{{baseUrl}}/api/mandate-uses?status=UNKNOWN"
+      }
+    }
+  ]
+}

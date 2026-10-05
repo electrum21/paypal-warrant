@@ -4,31 +4,37 @@ export const adminPageHtml = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Warrant: dispute responses</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-quartz.css">
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
 <style>
-:root{--ink:#17202b;--mute:#5b6674;--paper:#f3f5f7;--panel:#fff;--line:#d3dae1;
+:root{--paypal-blue:#003087;--paypal-sky:#0070ba;--paypal-gold:#ffc439;--ink:#14213d;--mute:#5b6674;--paper:#f5f7fb;--panel:#fff;--line:#d3dae1;
 --contest:#0f6e6e;--refund:#a86414;--accept:#a63a3a;--review:#55606e;--over:#c2453d}
 *{box-sizing:border-box}
 body{margin:0;background:var(--paper);color:var(--ink);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
 button,input,textarea{font:inherit;color:inherit}
-:focus-visible{outline:2px solid var(--contest);outline-offset:2px}
-.app{display:grid;grid-template-columns:340px 1fr;min-height:100vh}
-aside{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column}
-aside header{padding:20px 20px 12px}
-aside h1{margin:0 0 12px;font-size:20px;letter-spacing:-.01em}
+:focus-visible{outline:2px solid var(--paypal-sky);outline-offset:2px}
+.app{display:grid;grid-template-columns:420px minmax(0,1fr);height:100vh;min-height:0;overflow:hidden}
+aside{border-right:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+aside header{padding:22px 20px 16px;background:var(--paypal-blue);color:#fff;border-bottom:4px solid var(--paypal-gold)}
+aside h1{margin:0 0 14px;font-size:20px;letter-spacing:-.01em}
+.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.8}.brand{display:flex;align-items:center;gap:10px}.brand-mark{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#fff;color:var(--paypal-blue);font-weight:800;font-style:italic}
 .import{display:flex;gap:8px}
-.import input{flex:1;min-width:0;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:#fff}
-.btn{padding:7px 14px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer}
-.btn:hover{border-color:var(--ink)}
-.btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+.import input{flex:1;min-width:0;padding:8px 10px;border:1px solid #b9c6d8;border-radius:7px;background:#fff}
+.btn{padding:8px 18px;border:0;border-radius:999px;background:#fff;color:var(--paypal-blue);cursor:pointer;font-weight:650;white-space:nowrap}
+.btn:hover{background:#e8f3fb}.btn.primary{background:var(--paypal-sky);border-color:var(--paypal-sky);color:#fff}
 .btn:disabled{opacity:.5;cursor:default}
-#list{overflow:auto;flex:1}
-.item{display:flex;justify-content:space-between;gap:12px;width:100%;padding:12px 20px;border:0;border-top:1px solid var(--line);background:none;text-align:left;cursor:pointer}
-.item:hover,.item[aria-current=true]{background:var(--paper)}
-.item b{font-variant-numeric:tabular-nums}
-.item small{display:block;color:var(--mute)}
-.chip{align-self:center;font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid currentColor;white-space:nowrap}
+#msg.meta{color:rgba(255,255,255,.88);min-height:1.5em}
+#list{overflow:auto;flex:1;min-width:0;padding:10px 12px;background:var(--paper)}
+.item{display:block;width:100%;padding:14px;margin:0 0 10px;border:1px solid var(--line);border-left:4px solid var(--paypal-sky);border-radius:10px;background:var(--panel);text-align:left;cursor:pointer;box-shadow:0 1px 3px rgba(20,33,61,.05)}
+.item:hover,.item[aria-current=true]{background:#eef6fc;border-color:#9dc9e5;box-shadow:0 2px 7px rgba(20,33,61,.1)}
+.item b{font-variant-numeric:tabular-nums;font-size:16px}
+.item small{display:block;margin-top:5px;color:var(--mute);white-space:normal;overflow-wrap:anywhere}
+.item-meta{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}
+.item-label{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+.chip{font-size:12px;padding:3px 8px;border-radius:99px;border:1px solid currentColor;white-space:normal;text-align:center}
 .c-contest{color:var(--contest)}.c-offer_partial_refund{color:var(--refund)}.c-accept_claim{color:var(--accept)}.c-escalate_to_human{color:var(--review)}
-main{padding:32px clamp(20px,5vw,56px);max-width:820px}
+main{padding:36px clamp(20px,5vw,56px);min-width:0;width:100%;overflow-y:auto;overscroll-behavior:contain}
 .empty{color:var(--mute);max-width:46ch}
 .decision{border-left:5px solid currentColor;padding-left:16px;margin:0 0 6px}
 .decision h2{margin:0;font-size:26px;line-height:1.2;color:var(--ink);letter-spacing:-.015em}
@@ -44,23 +50,24 @@ main{padding:32px clamp(20px,5vw,56px);max-width:820px}
 blockquote{margin:16px 0;padding:0 0 0 14px;border-left:2px solid var(--line);color:var(--mute)}
 h3{font-size:15px;margin:24px 0 6px}
 ul{margin:0;padding-left:20px}
-textarea{width:100%;min-height:200px;padding:10px;border:1px solid var(--line);border-radius:6px;background:#fff;resize:vertical}
+textarea{width:100%;min-height:200px;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff;resize:vertical}
 .row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
 .status{margin-top:16px;padding:10px 12px;border-radius:6px;background:#e6ebf0}
 .status.bad{background:#f7e3e1;color:#7d2a25}
-.trace{margin:18px 0;padding:12px 14px;border:1px solid var(--line);border-radius:8px;background:#fbfcfd}
-.trace ol{margin:6px 0 0;padding-left:22px}.trace li{margin:4px 0}.trace small{color:var(--mute)}
-@media(max-width:760px){.app{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}#list{max-height:240px}}
+.trace{margin:18px 0;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:#fff;box-shadow:0 2px 8px rgba(20,33,61,.04)}
+.trace ol{margin:6px 0;padding-left:22px}.trace li{margin:4px 0}.trace small{color:var(--mute)}
+.ag-theme-quartz{height:100%;width:100%;--ag-font-size:13px;--ag-font-family:system-ui,-apple-system,"Segoe UI",sans-serif;--ag-foreground-color:var(--ink);--ag-secondary-foreground-color:var(--mute);--ag-header-foreground-color:var(--ink);--ag-background-color:#fff;--ag-header-background-color:#f5f7fb}
+@media(max-width:760px){.app{display:block;height:auto;min-height:100vh;overflow:visible}aside{border-right:0;border-bottom:1px solid var(--line);overflow:visible}main{overflow:visible}#list{max-height:300px}}
 </style></head>
 <body><div class="app">
-<aside><header><h1>Dispute responses</h1>
+<aside><header><div class="brand"><div class="brand-mark">W</div><div><div class="eyebrow">PayPal sandbox companion</div><h1>Dispute responses</h1></div></div>
 <form class="import" id="imp"><input id="impId" placeholder="PayPal dispute ID" aria-label="PayPal dispute ID"><button class="btn">Import</button></form>
 <p id="msg" class="meta" role="status" style="margin:8px 0 0"></p></header>
-<div id="list"></div></aside>
+<div id="list" class="ag-theme-quartz"></div></aside>
 <main id="detail"></main></div>
 <script>
 var token = new URLSearchParams(location.search).get("token") || "";
-var items = [], selId = null, shownState = null;
+var items = [], selId = null, shownState = null, gridApi = null;
 var LABEL = {contest:"Contest the dispute", offer_partial_refund:"Offer a partial refund", accept_claim:"Accept the claim and refund the buyer", escalate_to_human:"Needs your review"};
 var GO = {contest:"Submit evidence", offer_partial_refund:"Send offer", accept_claim:"Accept claim"};
 function money(c, cur){ return (c/100).toFixed(2) + " " + cur; }
@@ -88,12 +95,21 @@ function refresh(){
   }).catch(function(e){ say(e.message); });
 }
 function drawList(){
-  var list = document.getElementById("list"); list.textContent = "";
+  var list = document.getElementById("list");
+  list.textContent = "";
   items.forEach(function(d){
-    var a = actionOf(d), cur = d.purchase ? d.purchase.currency : "";
+    var a = actionOf(d), cur = d.purchase ? d.purchase.currency : "USD";
+    var status = d.workflowState === "PROPOSED" ? "Needs approval" : d.workflowState.charAt(0) + d.workflowState.slice(1).toLowerCase();
     var b = h("button", {class:"item", onclick:function(){ select(d.id); }},
-      h("span", null, h("b", null, d.amountCents != null ? money(d.amountCents, cur || "USD") : "Unknown amount"), h("small", null, d.reason || "")),
-      h("span", {class:"chip c-" + a}, d.workflowState === "PROPOSED" ? "Needs approval" : d.workflowState.charAt(0) + d.workflowState.slice(1).toLowerCase()));
+      h("b", null, d.amountCents != null ? money(d.amountCents, cur) : "Unknown amount"),
+      h("small", null, "PayPal dispute " + (d.paypalDisputeId || d.id)),
+      h("small", null, d.reason ? "Reason: " + d.reason : "Reason not provided"),
+      h("div", {class:"item-meta"},
+        h("span", {class:"item-label"}, "Recommended action"),
+        h("span", {class:"chip c-" + a}, LABEL[a])),
+      h("div", {class:"item-meta"},
+        h("span", {class:"item-label"}, "Workflow"),
+        h("span", {class:"item-label"}, status)));
     if (d.id === selId) b.setAttribute("aria-current", "true");
     list.append(b);
   });

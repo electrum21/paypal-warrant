@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { openDb } from "../db/index.js";
-import { generateKeys, signMandate } from "../mandate/sign.js";
-import type { Mandate } from "../mandate/types.js";
-import { recordOrder, registerAgentKey, revokeMandate, saveMandate } from "../repo.js";
+import { generateKeys, signCart, signMandate } from "../mandate/sign.js";
+import type { Cart, Mandate } from "../mandate/types.js";
+import { recordControlEvent, recordOrder, registerAgentKey, registerUserKey, revokeMandate, saveMandate } from "../repo.js";
 import type { DisputesApi, PayPalDispute } from "../paypal/disputes.js";
 import { approveDispute, listDisputes, processDispute, rejectDispute } from "./service.js";
 
@@ -12,16 +12,28 @@ const mandate: Mandate = {
   validFrom: "2026-11-01T00:00:00Z", expiresAt: "2026-11-02T00:00:00Z", nonce: "abcdef123456",
 };
 
-function setup(opts: { amountCents?: number; keyMismatch?: boolean; order?: boolean } = {}) {
+function setup(opts: {
+  amountCents?: number; keyMismatch?: boolean; order?: boolean;
+  /** The agent signs the mandate itself instead of the user (the old, self-issued model). */
+  agentSignsMandate?: boolean; noCart?: boolean; cartAmountCents?: number;
+} = {}) {
   const db = openDb();
-  const keys = generateKeys();
-  registerAgentKey(db, "agent-1", opts.keyMismatch ? generateKeys().publicKeyPem : keys.publicKeyPem);
-  const signed = signMandate(mandate, keys.privateKeyPem);
+  const userKeys = generateKeys(), agentKeys = generateKeys();
+  registerUserKey(db, "u1", opts.keyMismatch ? generateKeys().publicKeyPem : userKeys.publicKeyPem);
+  registerAgentKey(db, "agent-1", agentKeys.publicKeyPem);
+  const signed = signMandate(mandate, (opts.agentSignsMandate ? agentKeys : userKeys).privateKeyPem);
   saveMandate(db, signed);
+  const amountCents = opts.amountCents ?? 11500;
+  const cart: Cart = {
+    cartId: "cart-0001-abcdef", mandateId: "m1", mandateHash: signed.mandateHash, agentId: "agent-1",
+    merchantId: "runco", amountCents: opts.cartAmountCents ?? amountCents, currency: "USD", category: "footwear",
+    createdAt: "2026-11-01T12:00:00Z",
+  };
   if (opts.order !== false) {
     recordOrder(db, {
-      paypalOrderId: "ORD-1", mandateId: "m1", merchantId: "runco", amountCents: opts.amountCents ?? 11500,
+      paypalOrderId: "ORD-1", mandateId: "m1", merchantId: "runco", amountCents,
       currency: "USD", category: "footwear", findings: [], at: "2026-11-01T12:00:00Z", captureId: "CAP-1",
+      signedCart: opts.noCart ? undefined : signCart(cart, agentKeys.privateKeyPem),
     });
   }
   const calls: { fn: string; args: unknown[] }[] = [];
@@ -39,6 +51,37 @@ function setup(opts: { amountCents?: number; keyMismatch?: boolean; order?: bool
   };
   return { db, deps: { db, disputes: api, now: () => new Date("2026-11-05T00:00:00Z") }, calls, failOnce: () => { failNext = true; } };
 }
+
+describe("who signed the mandate", () => {
+  it("accepts the claim when the agent signed the mandate instead of the user", async () => {
+    const { deps } = setup({ agentSignsMandate: true });
+    const r = await processDispute(deps, "PP-D-1");
+    expect(r.signatureValid).toBe(false);
+    expect(r.authorization?.mandateSignedByUser).toBe(false);
+    expect(r.authorization?.cartSignedByAgent).toBe(true);
+    expect(r.decision?.action).toBe("accept_claim");
+  });
+  it("accepts the claim when the order has no agent-signed cart", async () => {
+    const { deps } = setup({ noCart: true });
+    const r = await processDispute(deps, "PP-D-1");
+    expect(r.signatureValid).toBe(false);
+    expect(r.decision?.action).toBe("accept_claim");
+    expect(r.evidenceNote).toContain("No signed cart");
+  });
+  it("accepts the claim when the signed cart does not match the order that was recorded", async () => {
+    const { deps } = setup({ cartAmountCents: 9000 });
+    const r = await processDispute(deps, "PP-D-1");
+    expect(r.authorization?.cartMatchesPurchase).toBe(false);
+    expect(r.decision?.action).toBe("accept_claim");
+  });
+  it("records both signers in the evidence note when everything verifies", async () => {
+    const { deps } = setup();
+    const r = await processDispute(deps, "PP-D-1");
+    expect(r.signatureValid).toBe(true);
+    expect(r.evidenceNote).toContain("signed by user u1");
+    expect(r.evidenceNote).toContain("Cart signed by the registered key of agent agent-1: yes");
+  });
+});
 
 describe("processDispute", () => {
   it("proposes contest when the purchase is within a valid mandate", async () => {
@@ -65,6 +108,40 @@ describe("processDispute", () => {
     const r = await processDispute(deps, "PP-D-1");
     expect(r.decision?.action).toBe("accept_claim");
     expect(r.findings?.map(f => f.code)).toContain("MANDATE_REVOKED");
+  });
+  const control = (db: ReturnType<typeof setup>["db"], action: "pause_agent" | "resume_agent" | "revoke_mandate", appliedAt: string, subjectId = "u1", reason?: string) =>
+    recordControlEvent(db, { userId: "u1", action, subjectId, reason, issuedAt: appliedAt, appliedAt, nonce: `n-${action}-${appliedAt}`, via: "user_signature" });
+  it("treats a purchase made while the agent was paused as a block, and records the control in the evidence", async () => {
+    const { db, deps } = setup();                                   // the purchase is at 2026-11-01T12:00:00Z
+    control(db, "pause_agent", "2026-11-01T11:00:00Z", "u1", "lost my phone");
+    const r = await processDispute(deps, "PP-D-1");
+    expect(r.decision?.action).toBe("accept_claim");
+    expect(r.findings?.map(f => f.code)).toContain("AGENT_PAUSED");
+    expect(r.evidenceNote).toContain("pause_agent");
+    expect(r.evidenceNote).toContain("lost my phone");
+    expect(r.agentEvents?.map(e => e.toolName)).toContain("check_user_controls");
+  });
+  it("does not count a pause or revocation issued after the purchase", async () => {
+    const { db, deps } = setup();
+    control(db, "pause_agent", "2026-11-01T13:00:00Z");
+    control(db, "revoke_mandate", "2026-11-01T14:00:00Z", "m1");
+    const r = await processDispute(deps, "PP-D-1");
+    expect(r.decision?.action).toBe("contest");
+    expect(r.findings).toEqual([]);
+    expect(r.evidenceNote).toContain("revoke_mandate");              // still on record, but not held against the purchase
+  });
+  it("does not count a pause that was lifted before the purchase", async () => {
+    const { db, deps } = setup();
+    control(db, "pause_agent", "2026-11-01T09:00:00Z");
+    control(db, "resume_agent", "2026-11-01T10:00:00Z");
+    expect((await processDispute(deps, "PP-D-1")).findings).toEqual([]);
+  });
+  it("treats a control-log revocation before the purchase as a block", async () => {
+    const { db, deps } = setup();
+    control(db, "revoke_mandate", "2026-11-01T10:00:00Z", "m1", "changed my mind");
+    const r = await processDispute(deps, "PP-D-1");
+    expect(r.decision?.action).toBe("accept_claim");
+    expect(r.findings?.find(f => f.code === "MANDATE_REVOKED")?.message).toContain("changed my mind");
   });
   it("escalates when no order matches", async () => {
     const { deps } = setup({ order: false });

@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: warrant
+    runtime: node
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "24.0.0"
+      - key: DATABASE_PATH
+        value: /var/data/warrant.db
+      - key: PORT
+        value: "10000"
+      - key: APP_URL
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_WEBHOOK_ID
+        sync: false
+    disk:
+      name: warrant-data
+      mountPath: /var/data
+      sizeGB: 1

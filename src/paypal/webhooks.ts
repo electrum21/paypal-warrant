@@ -3,7 +3,9 @@ import { ppFetch } from "./client.js";
 
 /**
  * Verifies a webhook with PayPal's verify-webhook-signature endpoint.
- * UNTESTED against the live sandbox: confirm during week 1.
+ * The endpoint receives the parsed event because PayPal verifies the event fields
+ * together with the transmission headers; the HTTP receiver preserves the raw
+ * body before parsing.
  */
 export async function verifyWebhook(
   cfg: Config,

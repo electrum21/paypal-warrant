@@ -2,7 +2,7 @@
 
 *Personal runbook. Work top to bottom; each part builds on the one before. Parts A to C need no PayPal account.*
 
-**Status note (updated 4 Oct 2026).** Parts A to F were run end to end against the PayPal **sandbox**: order creation, capture, dispute import, and two of the three response paths (contest, accept claim). The third path (partial refund) is **not available** from PayPal for this dispute type, so Warrant shows it as a blocked proposal. **Part G (webhooks) has not been run.** Part K records exactly what was observed and what was not.
+**Status note (updated 5 Oct 2026).** Parts A to F were run end to end against the PayPal **sandbox**: order creation, capture, dispute import, and two of the three response paths (contest, accept claim). The PayPal Vault payment-method connection was also run successfully: setup-token approval and exchange for a payment-method token both work. The third dispute path (partial refund) is **not available** from PayPal for this dispute type, so Warrant shows it as a blocked proposal. The three sponsor integrations (Channel3, Elastic, Zapier) were each run live (part G2). The PayPal webhook receiver and local verification/deduplication tests are implemented; live webhook delivery and signature verification still require a public deployment. Part K records exactly what was observed and what was not.
 
 ## A. Prerequisites and install
 
@@ -19,7 +19,7 @@ npm install
 ### B1. Run the automated tests
 
 ```
-npm test            # 44 tests expected
+npm test            # 51 tests expected
 npm run typecheck   # should print nothing if clean
 ```
 
@@ -32,6 +32,7 @@ What the tests cover:
 | `src/disputes/service.test.ts` | Propose, approve, retry after failure, reject, escalate, idempotency, LLM draft accepted, proposals PayPal does not allow are blocked |
 | `src/ai/draft.test.ts` | LLM output validation; fallbacks for bad JSON, errors, invented numbers |
 | `src/agent/agent.test.ts` | The three demo scenarios end to end with a fake PayPal |
+| `src/integrations/channel3.test.ts` | Channel3 adapter: URL and header, cheapest in-budget offer, currency and budget filtering, description length, errors |
 | `src/server/app.test.ts` | Database schema creation |
 
 ### B2. Watch the whole story
@@ -84,6 +85,10 @@ product, creates a signed mandate from that plan, and submits the checkout:
 npm run demo -- buy-request "Buy trail running shoes under $120"
 ```
 
+With `CHANNEL3_URL` and `CHANNEL3_API_KEY` set, the catalog is searched through Channel3 (the output line `Catalog source: channel3`). If Channel3 is not configured or returns an error, the local demo catalog is used and the output says why.
+
+**PowerShell tip:** put the request in **single quotes** (`'Buy trail running shoes under $120'`). Inside double quotes PowerShell treats `$120` as a variable and refuses to run the command.
+
 This is intentionally bounded: the request is converted into a validated plan before
 the mandate is signed, and a product outside the budget or category is never selected.
 The merchant-side agent's investigation trace is shown in the offline demo and in the
@@ -105,6 +110,9 @@ copy .env.example .env      # PowerShell (cp on macOS/Linux)
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | No | Enables LLM explanations with Gemini. Default model `gemini-3.1-flash-lite` |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | No | Enables LLM explanations with Anthropic (used only if no Gemini key). Default model `claude-sonnet-5-5` |
 | `ENFORCE_MANDATE` | No | `true` makes `/api/checkout` refuse purchases that break the mandate (HTTP 422). Default `false`: record them and defend later |
+| `CHANNEL3_URL`, `CHANNEL3_API_KEY` | No | Real product search for `buy-request`. URL is `https://api.trychannel3.com`. Adapter calls `POST /v1/search` with an `x-api-key` header |
+| `ELASTIC_URL`, `ELASTIC_API_KEY`, `ELASTIC_INDEX` | No | Indexes the merchant agent's investigation events and enables `/api/agent-events/search`. URL is the Elasticsearch endpoint (not Kibana). Default index `warrant-agent-events` |
+| `ZAPIER_WEBHOOK_URL` | No | A Zapier Catch Hook URL. Receives a `proposal_ready` message when a proposal is created |
 | `MERCHANT_ID` | No | Merchant id mandates must list. Default `warrant-demo-merchant`. Server and demo CLI must agree |
 | `DATABASE_PATH`, `PORT`, `APP_URL` | No | Defaults `./warrant.db`, `8787`, `http://localhost:8787` |
 
@@ -141,7 +149,7 @@ Check `http://localhost:8787/health`. You want `"admin": true`. `"llm"` is true 
 Terminal 2:
 
 ```
-npm run demo -- register          # one time: tells the merchant the agent's public key
+npm run demo -- register          # one time: tells the merchant the user's and the agent's public keys
 npm run demo -- buy within        # or: over | category
 ```
 
@@ -149,9 +157,9 @@ npm run demo -- buy within        # or: over | category
 
 **Each dispute needs its own payment.** PayPal does not let a buyer open a second dispute on the same transaction (per PayPal's sandbox guide), so run a fresh `buy` for each scenario.
 
-The agent's keypair is stored in `.demo-agent.json` (delete it to start with a fresh agent, then register again).
+The demo has two signers. The **user** key (`.demo-user.json`) signs the mandate; the **agent** key (`.demo-agent.json`) signs each cart. Delete a file to start with a fresh key, then register again. Both files hold private keys and are git-ignored.
 
-**What the click means.** In this demo a human clicking "Pay Now" stands in for a buyer who has already linked a payment method. In production the agent would pay without that click, which is exactly when the signed mandate becomes the evidence of what the buyer allowed.
+**What the click means.** The default `buy` command uses an approval-based order. The user page also supports connecting a PayPal Vault payment method for autonomous charges, and the full browser-driven autonomous checkout has been verified in the sandbox.
 
 ## F. Raise and handle a dispute
 
@@ -216,6 +224,29 @@ Set `ENFORCE_MANDATE=true` in `.env` and restart. Then `npm run demo -- buy over
 
 Record **which events actually fire** at each stage in part K.
 
+## G2. Sponsor integrations (Channel3, Elastic, Zapier)
+
+All three are optional and off unless their variables are set. Failures in Elastic and Zapier are logged and swallowed (they never block a proposal), so **look in the server terminal, not the UI,** when something does not arrive. `GET /health` shows which are enabled under `integrations`.
+
+**Channel3 (product discovery).** Test the endpoint directly:
+
+```
+Invoke-RestMethod -Method Post -Uri http://localhost:8787/api/catalog/search -ContentType "application/json" -Body '{"query":"trail running shoes","maxAmountCents":12000,"currency":"USD","category":"footwear"}' | ConvertTo-Json -Depth 5
+```
+
+You want `"source": "channel3"` with products at or under the budget. Then `npm run demo -- buy-request 'Buy trail running shoes under $120'` and check `Catalog source: channel3`. Real products come from other retailers, so the demo store lists the cheapest in-budget offer as its own item and records the retailer in the description (for example `... (via mountainwarehouse.com)`). The category is the one the buyer asked for; Channel3's own categories are not mapped.
+
+**Zapier (notification).** Import a **new** dispute (a repeat import returns the stored result and notifies nothing), then open the Zap's history. You should see `source: warrant`, `type: proposal_ready`, the Warrant dispute ID, and `data.action` and `data.reason`.
+
+**Elastic (agent event search).** Import a **new** dispute, then:
+
+```
+Invoke-RestMethod -Headers @{"x-admin-token"="YOUR_ADMIN_TOKEN"} 'http://localhost:8787/api/agent-events/search?q=recommend_response' | ConvertTo-Json -Depth 6
+Invoke-RestMethod -Headers @{"x-admin-token"="YOUR_ADMIN_TOKEN"} 'http://localhost:8787/api/agent-events/search?q=contest'  | ConvertTo-Json -Depth 6
+```
+
+The first searches by tool name; the second searches inside an event's stored output. Both should return `"source": "elastic"` with results. Each dispute produces events named `observe_dispute`, `get_dispute`, `match_order`, `recommend_response` (and `investigation_complete` in some cases). The same trail is shown in the admin page under **Merchant agent activity**.
+
 ## H. Inspecting the database
 
 No `sqlite3` CLI needed:
@@ -239,6 +270,7 @@ Agent-facing (no token):
 | Method and path | Body | Result |
 |---|---|---|
 | `GET /health` | | Feature flags |
+| `POST /api/catalog/search` | `{ query, maxAmountCents, currency?, category? }` | `{ source, products }`. `source` is `channel3` when results came from Channel3, else `not_configured`. Unauthenticated; consider adding auth |
 | `POST /api/checkout` | `{ signedMandate, purchase: { amountCents, currency?, category?, description? } }` | `201 { orderId, approveUrl, findings }`. 400 for unknown agent or bad signature, 409 for a reused mandate id, **422 if `ENFORCE_MANDATE=true` and the purchase breaks the mandate** |
 | `GET /paypal/return?token=ORDER_ID` | | Captures the payment, stores the capture ID |
 
@@ -247,6 +279,7 @@ Merchant-facing (header `x-admin-token`, or `?token=` on the page):
 | Method and path | Body | Result |
 |---|---|---|
 | `GET /admin` | | Approval page |
+| `GET /api/agent-events/search?q=...` | | Searches indexed merchant-agent events in Elastic (`source: not_configured` if Elastic is off) |
 | `POST /api/agents` | `{ agentId, publicKeyPem }` | Registers a buyer agent key |
 | `GET /api/disputes` | | All disputes with proposals |
 | `GET /api/disputes/:id` | | One dispute |
@@ -263,7 +296,8 @@ Merchant-facing (header `x-admin-token`, or `?token=` on the page):
 | `/health` shows `"admin": false` or `/admin` shows 503 | `ADMIN_TOKEN` not set, or the server was not restarted after setting it |
 | `/admin` shows 401 | Token in the URL doesn't match `.env` |
 | `register` fails with 401/503 | Same token issue; the CLI reads `ADMIN_TOKEN` from `.env` |
-| `buy` says "Agent ... is not registered" | Run `npm run demo -- register` (and again after deleting `.demo-agent.json`) |
+| `buy` says "No key is registered for user ..." or "... for agent ..." | Run `npm run demo -- register` (and again after deleting `.demo-user.json` or `.demo-agent.json`) |
+| `buy` says "This signed cart was already used" | Each signed cart is accepted once; run `buy` again to sign a new one |
 | Checkout 400 on mandate content | `MERCHANT_ID` in the demo's environment and the server's must match |
 | Checkout 422 | `ENFORCE_MANDATE=true` and the purchase breaks the mandate. Intended |
 | Import gives "No order in Warrant matches" (escalated) | The dispute's transaction isn't a capture Warrant recorded. Make sure you approved the payment so `/paypal/return` ran, and that you disputed that same payment |
@@ -274,12 +308,19 @@ Merchant-facing (header `x-admin-token`, or `?token=` on the page):
 | TS errors about `../repo.js` having no exported member | `src/repo.ts` is empty or replaced; restore the original |
 | `SQLite is an experimental feature` warning | Harmless on Node 22/24 |
 | `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` | Node older than 22.13 |
+| Server will not start: `Missing or invalid environment variables: CHANNEL3_URL, ...` | A sponsor variable is present but blank in `.env` (for example `CHANNEL3_URL=`). `config.ts` must treat blank values as unset (see K) |
+| `Channel3 API 403` | Wrong path or auth header. The REST API is `POST {base}/v1/search` with `x-api-key`, not `Authorization: Bearer`. Also check the key is valid |
+| `buy-request` fails with `The variable '$120' cannot be retrieved` | PowerShell: use single quotes around the request |
+| `/api/agent-events/search` returns `[]` for a word inside an event's output | The search must include `input.*` and `output.*` in its `fields`, not just `output` |
+| Elastic indexing fails with a 401/403/404 | `ELASTIC_URL` is the Kibana address instead of Elasticsearch, or the API key is the wrong form or lacks write permission |
 | Submission shows Failed with a PayPal 4xx | Request body mismatch; read PayPal's error text and see part F |
 
-## K. Verification checklist (what was observed, 4 Oct 2026)
+## K. Verification checklist (what was observed, 4 to 5 Oct 2026)
 
-- [x] `npm test` and `npm run typecheck` pass on my machine (44 tests).
+- [x] `npm test` and `npm run typecheck` pass on my machine (51 tests).
 - [x] `smoke:auth` and `smoke:order` work. Order `COMPLETED`, capture ID printed.
+- [x] PayPal Vault payment-method connection works in the sandbox: the setup token reaches the buyer approval page and the approved token is exchanged and stored server-side.
+- [x] The low-level Vault charge smoke path works in the sandbox: a saved payment-method token created an order without a buyer approval click and captured $15.00.
 - [x] `/api/checkout` creates an order and the approval flow completes. Orders for `within`, `over` and `category` were all created and captured.
 - [x] **How a sandbox dispute can be created.** Buyer UI: Unauthorized activity, then "I suspect my account is being used by someone else", with the payment selected. Result: reason `UNAUTHORISED`, stage `CHARGEBACK`, channel `INTERNAL`, status `WAITING_FOR_SELLER_RESPONSE`, response due about 11 days out. The merchant account cannot file a case.
 - [x] **Buyer and merchant dispute IDs differ** for unauthorized cases (buyer `PP-R-ZVT-10190270`, merchant `PP-R-GTN-10190271`). IDs start `PP-R-`, not `PP-D-`.
@@ -288,10 +329,28 @@ Merchant-facing (header `x-admin-token`, or `?token=` on the page):
 - [x] **Accept-claim body:** the dispute's `allowed_response_options.accept_claim.accept_claim_types` listed only `REFUND`. Sending `{ note, accept_claim_type: "REFUND" }` worked: buyer credited, seller debited the full amount, transaction `REFUNDED`, and the seller fee reversed. (The old `accept_claim_reason` field was replaced before it was ever sent, so its valid values were not tested.)
 - [x] **Partial refund via make-offer is not available** on an `UNAUTHORISED` dispute at the `CHARGEBACK` stage. The dispute's links offered only `accept_claim` and `provide_evidence`; there was no `make_offer`. Warrant now shows the proposal as blocked, explains why, and allows only Dismiss. `make-offer` itself was **never exercised** against the sandbox.
 - [x] The note sent to PayPal passed validation and arrived intact, including the code-written block with the mandate ID, hash, and instruction.
-- [x] `ENFORCE_MANDATE=true` refuses an out-of-mandate checkout with a 422 and no PayPal order. *(Tick only after you have run it.)*
-- [ ] Which webhooks fire at creation, update and resolution. **Not tested.**
-- [ ] Webhook verification returns `SUCCESS` (not just stored). **Not tested.**
+- [x] `ENFORCE_MANDATE=true` refuses an out-of-mandate checkout with a 422 and no PayPal order.
+- [x] The webhook receiver preserves the raw body, verifies events through PayPal's verification endpoint, stores verified/unverified events, and deduplicates event IDs. Local tests cover malformed, unverified, and duplicate events.
+- [ ] Which webhook event types PayPal sends at creation, update and resolution. **Not tested against the live Sandbox.**
+- [x] The complete browser-driven `/api/checkout` autonomous purchase path against live PayPal.
 - [ ] What the PayPal Agent Toolkit and MCP server expose that we could use. **Not investigated.**
+
+### Sponsor integrations (observed 5 Oct 2026)
+
+- [x] **Channel3:** `POST /v1/search` with an `x-api-key` header returns real products. `buy-request` printed `Catalog source: channel3`, selected a real product (a $39.99 trail shoe via mountainwarehouse.com, the cheapest offer inside the $120 budget), signed a mandate, and created a sandbox order with no findings.
+  - The first version of the adapter returned `403` because it called `/search` (no `/v1`) with a Bearer header and expected a flat product shape. It was rewritten to Channel3's documented REST API (offers carry the price and retailer domain).
+  - Real products come from other retailers, so the demo store lists the chosen offer as its own item (merchant = the Warrant demo merchant) and keeps the retailer in the description. The category is the one the buyer requested; Channel3 categories are not mapped.
+  - The agent picks the cheapest eligible product, so a $120 budget bought a $39.99 item.
+- [x] **Zapier:** after a dispute import the Catch Hook received `source: warrant`, `type: proposal_ready`, `dispute_id: 4`, `data.action: contest`, `data.reason: UNAUTHORISED`.
+- [x] **Elastic:** events from a dispute import (`observe_dispute`, `get_dispute`, `match_order`, `recommend_response`) were indexed, and `/api/agent-events/search` returns them.
+  - Searching by tool name worked first. Searching for a word inside an event's output (`contest`) returned nothing until the query's fields were changed to `input.*` and `output.*`, because inputs and outputs are stored as nested objects.
+  - Indexed events carry `disputeId: null` (the event is indexed before Warrant links it to the dispute row). Join on `runId`, which contains the PayPal dispute ID.
+  - `createdAt` and `@timestamp` are stored as `2026-10-04 23:40:24` (SQLite format, no `T`/`Z`), so Elastic probably does not treat `@timestamp` as a date. Not checked in Discover.
+- [ ] A fresh `.env` copied from `.env.example` starts the server. **Found by code review:** blank values for the five sponsor variables made `loadConfig()` fail, so a fresh clone or a Render deploy would not start. The fix treats blank as unset (`z.preprocess(blank, ...)` in `src/config.ts`). Tick this after testing with a fresh copy.
+- [ ] Prompt injection through a `buy-request` (hostile text in the request becomes the mandate description). **Not tested.**
+- [x] `ENFORCE_MANDATE=true` returns 422 on an over-limit checkout with no PayPal order.
+- [ ] Render deployment and persistent disk. **Not tested.**
+- [ ] The Channel3 and Elastic adapters against anything other than the one request used above. Only a single search query and one index were exercised.
 
 ### Other findings worth knowing
 
@@ -299,7 +358,8 @@ Merchant-facing (header `x-admin-token`, or `?token=` on the page):
 - **Sandbox UI wording:** a case where the merchant accepted the claim and the buyer was refunded displayed as "closed in seller's favor". The money did move to the buyer; treat the money movements as the source of truth, not the label.
 - **One dispute per transaction** (per PayPal's sandbox guide), so each scenario needs a fresh payment.
 - **The category is declared by the agent** at checkout and is not verified by Warrant. In production it would need to come from the merchant's catalog or the cart.
-- **The demo's payment click** stands in for a pre-linked payment method. Autonomous agent payments without that click are not demonstrated.
+- **The default demo's payment click** stands in for an approval-based payment. PayPal Vault connection and a low-level autonomous charge were demonstrated in the sandbox without a second buyer approval click.
+- **The complete browser-driven `/api/checkout` autonomous purchase path** against live PayPal is verified. The default `buy` command remains available for approval-based checkout.
 
 ### Scope of the claim
 

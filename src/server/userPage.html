@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Warrant: my agent</title>
+<style>
+:root{--paypal-blue:#003087;--paypal-sky:#0070ba;--paypal-gold:#ffc439;--ink:#14213d;--muted:#5b667a;--paper:#f5f7fb;--panel:#fff;--line:#d8e0ec;--danger:#b42318;--success:#087443}
+*{box-sizing:border-box}body{font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;max-width:780px;margin:0 auto;padding:0 20px 36px;color:var(--ink);background:var(--paper)}
+header{margin:0 -20px 22px;padding:22px max(20px,calc((100% - 740px)/2));background:var(--paypal-blue);color:#fff;border-bottom:4px solid var(--paypal-gold)}
+.brand{display:flex;align-items:center;gap:10px}.brand-mark{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#fff;color:var(--paypal-blue);font-weight:800;font-size:18px;font-style:italic}.eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;opacity:.8}.brand h1{font-size:21px;margin:0;letter-spacing:-.02em}.brand small{font-size:12px;font-weight:400;opacity:.75}
+.intro{padding:4px 4px 8px}.intro h2{font-size:25px;margin:0 0 5px;letter-spacing:-.02em}.intro p{margin:0;color:var(--muted);max-width:62ch}.flow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0;font-weight:650;color:var(--paypal-blue)}.flow span{color:var(--paypal-gold);font-size:18px}
+h2{font-size:16px;margin:0 0 12px;color:var(--ink)}h2 span{display:inline-grid;place-items:center;width:24px;height:24px;margin-right:7px;border-radius:50%;background:#e7f0fb;color:var(--paypal-blue);font-size:12px}
+.card{background:var(--panel);border:1px solid var(--line);box-shadow:0 2px 8px rgba(20,33,61,.05);border-radius:12px;padding:18px;margin:14px 0}
+.warn{background:#fff9ed;border-color:#f0d28a}.warn b{color:#8a5a00}
+label{display:block;font-size:12px;font-weight:600;margin:10px 0 4px;color:var(--muted)}
+input,textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #b9c6d8;border-radius:7px;background:#fff;color:var(--ink);font:inherit}input:focus,textarea:focus{border-color:var(--paypal-sky);outline:2px solid #c9e8fb;outline-offset:0}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:140px}
+button{padding:10px 16px;border:0;border-radius:999px;background:var(--paypal-sky);color:#fff;font-weight:650;font:inherit;cursor:pointer;margin:12px 8px 0 0;transition:transform .12s,background .12s}button:hover{background:var(--paypal-blue);transform:translateY(-1px)}button.stop{background:var(--danger)}button.ok{background:var(--paypal-blue)}button.plain{background:#e8eef6;color:var(--paypal-blue)}button.stop:hover{background:#8f1d14}
+.safety-status{margin:12px 0 0;padding:10px 12px;border:1px solid #b9d9ee;border-radius:9px;background:#f0f8fd;color:var(--paypal-blue);font-weight:650}
+.safety-status.paused{border-color:#f0d28a;background:#fff9ed;color:#8a5a00}
+pre{background:#10233f;color:#e8f1ff;padding:13px;border-radius:8px;overflow:auto;max-height:260px;font-size:12px;white-space:pre-wrap;word-break:break-all}small{color:var(--muted)}
+.permission{margin-top:16px;padding:13px 15px;border:1px solid #b9d9ee;border-radius:9px;background:#f0f8fd}.permission ul{margin:7px 0 0;padding-left:20px}.permission li{margin:3px 0}.permission span{font-weight:650;color:var(--paypal-blue)}details{margin-top:14px;border-top:1px solid var(--line);padding-top:10px}summary{color:var(--paypal-blue);font-weight:650;cursor:pointer}.technical{margin-top:14px}.safety p{margin:0;color:var(--muted)}.safety>details{margin-top:14px}.start{font-size:14px;padding:10px 16px;margin-top:10px}.start:disabled{opacity:.55}
+.orders{display:grid;gap:8px}.order{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#f8fbff}.order strong{color:var(--paypal-blue)}.order small{display:block;margin-top:2px}
+.capabilities{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.capability{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#f8fbff}.capability b{display:block;color:var(--paypal-blue);font-size:13px}.capability small{display:block;margin-top:2px}.capability em{font-style:normal;font-size:11px;font-weight:700;color:var(--success)}.capability.off em{color:var(--muted)}
+.footer{text-align:center;color:var(--muted);font-size:12px;margin:24px 0 0}
+@media(max-width:560px){body{padding:0 14px 28px}header{margin-left:-14px;margin-right:-14px;padding-left:14px;padding-right:14px}.card{padding:15px}}
+</style></head><body>
+<header><div class="brand"><div class="brand-mark">W</div><div><div class="eyebrow">PayPal sandbox companion</div><h1>Warrant <small>Safe agent payments</small></h1></div></div></header>
+<div class="intro"><h2>Give your shopping agent a safe budget</h2><p>Tell your agent what it may buy and how much it may spend. Warrant checks every purchase against your permission before PayPal is charged.</p></div>
+<div class="card warn"><b>How it works</b><p class="flow">You set the rules <span>→</span> Your agent shops <span>→</span> Warrant checks <span>→</span> PayPal pays</p><small>You stay in control. Pause the agent or cancel a permission at any time.</small></div>
+
+<div class="card"><h2><span>1</span>Sign in and connect this device</h2>
+<p id="authstate">Checking your PayPal sign-in...</p>
+<input id="userId" type="hidden">
+<button id="signIn" class="ok">Continue with PayPal</button>
+<button id="mk" class="plain" hidden>Set up secure authorization</button><button id="reg" class="plain" hidden>Connect this device</button>
+<p><small>Use your PayPal Sandbox account. Your PayPal password is entered only on PayPal’s site.</small></p>
+<p id="keystate"><small></small></p>
+<button id="connectPayment" class="ok" hidden>Connect PayPal payment method</button>
+<p id="paymentstate"><small></small></p></div>
+
+<div class="card"><h2><span>2</span>Set your shopping permission</h2>
+<label>What should your agent buy?</label><input id="desc" value="Buy one pair of trail running shoes">
+<div class="row"><div><label>Maximum per purchase ($)</label><input id="max" type="number" value="120" min="1"></div>
+<div><label>Total budget ($, optional)</label><input id="total" type="number" min="1" placeholder="Same as max"></div>
+<div><label>Number of purchases</label><input id="count" type="number" value="1" min="1"></div></div>
+<div class="row"><div><label>What kind of item?</label><input id="cat" value="footwear"></div>
+<div><label>Permission lasts (hours)</label><input id="hours" type="number" value="24" min="1"></div></div>
+<details><summary>Advanced options</summary><div class="row"><div><label>Approved merchant</label><input id="merchant" value="warrant-demo-merchant"></div>
+<div><label>Shopping agent</label><input id="agent" value="demo-buyer-agent"></div></div></details>
+<div class="permission"><b>Your agent will be allowed to:</b><ul><li>Buy <span id="summaryDesc">trail running shoes</span></li><li>Spend up to $<span id="summaryMax">120</span> per purchase</li><li>Make <span id="summaryCount">1</span> purchase<span id="summaryPlural"></span></li><li>Use this permission for <span id="summaryHours">24</span> hours</li></ul></div>
+<button id="sign" class="ok">Review permission</button>
+<button id="startShopping" class="start">Authorize and start shopping</button>
+<details class="technical"><summary>Technical details</summary><label>Signed authorization</label><textarea id="signed" rows="3" readonly placeholder="Your signed permission will appear here"></textarea></details></div>
+
+<div class="card safety"><h2><span>3</span>Safety</h2>
+<p>Stop automatic purchases at any time. Payments already sent to PayPal are not reversed.</p>
+<p id="shoppingStatus" class="safety-status" role="status">Automatic shopping is allowed.</p>
+<button id="pause" class="stop">Stop automatic shopping</button>
+<button id="resume" class="ok" hidden>Allow automatic shopping</button>
+<details><summary>More controls</summary>
+<label>Why are you changing access? (optional)</label><input id="reason">
+<button id="revpay" class="stop">Disconnect PayPal payment access</button>
+<label>Cancel one shopping permission</label>
+<div class="row"><input id="mid" placeholder="Permission ID"><button id="revoke" class="stop" style="flex:0 0 auto">Cancel permission</button></div>
+</details></div>
+
+<div class="card"><h2>Activity</h2><pre id="log">Nothing yet.</pre></div>
+<div class="card"><h2>Agent capabilities</h2><p><small>These services make the agent more useful, observable, and accountable. They run behind the scenes while Warrant remains the payment safety layer.</small></p><div id="capabilities" class="capabilities"><div class="capability"><b>Channel3</b><small>Finds real product options for your request.</small><em>Checking...</em></div><div class="capability"><b>Elastic</b><small>Indexes the agent’s decisions for investigation.</small><em>Checking...</em></div><div class="capability"><b>Zapier</b><small>Notifies the merchant when a dispute response is ready.</small><em>Checking...</em></div><div class="capability"><b>AG Grid</b><small>Gives the merchant a searchable dispute workbench.</small><em>Available in merchant view</em></div></div></div>
+<div class="card"><h2>Purchases</h2><p><small>Signed purchases appear here after your agent submits checkout.</small></p><div id="orders" class="orders"><small>No purchases loaded.</small></div><button id="loadOrders" class="plain">Refresh purchases</button></div>
+<div class="footer">Warrant is a demonstration application using PayPal Sandbox. Not an official PayPal page.</div>
+
+<script>
+//--crypto-start
+const enc = new TextEncoder();
+const b64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+// Must match the server's canonicalize(): keys sorted, undefined dropped.
+const canon = v => Array.isArray(v) ? "[" + v.map(canon).join(",") + "]"
+  : v && typeof v === "object" ? "{" + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ":" + canon(v[k])).join(",") + "}"
+  : JSON.stringify(v);
+const toPem = spki => "-----BEGIN PUBLIC KEY-----\n" + b64(spki).match(/.{1,64}/g).join("\n") + "\n-----END PUBLIC KEY-----\n";
+async function newKey() {
+  const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]);
+  return { jwk: await crypto.subtle.exportKey("jwk", kp.privateKey), pem: toPem(await crypto.subtle.exportKey("spki", kp.publicKey)) };
+}
+async function signText(jwk, text) {
+  const k = await crypto.subtle.importKey("jwk", jwk, { name: "Ed25519" }, false, ["sign"]);
+  return b64(await crypto.subtle.sign({ name: "Ed25519" }, k, enc.encode(text)));
+}
+async function signMandate(jwk, mandate) {
+  const c = canon(mandate);
+  return { mandate, mandateHash: hex(await crypto.subtle.digest("SHA-256", enc.encode(c))), signature: await signText(jwk, c) };
+}
+async function signCart(jwk, cart) {
+  const c = canon(cart);
+  return { cart, cartHash: hex(await crypto.subtle.digest("SHA-256", enc.encode(c))), signature: await signText(jwk, c) };
+}
+async function signControl(jwk, request) {
+  return { request, signature: await signText(jwk, canon({ type: "warrant.control.v1", request })) };
+}
+//--crypto-end
+
+const $ = id => document.getElementById(id);
+const KEY = "warrant.prototype.identity";
+const load = () => { try { return JSON.parse(localStorage.getItem(KEY) || "null"); } catch { return null; } };
+function updateSummary() {
+  $("summaryDesc").textContent = $("desc").value.trim() || "the selected item";
+  $("summaryMax").textContent = Number($("max").value || 0).toFixed(2);
+  $("summaryCount").textContent = $("count").value || "1";
+  $("summaryPlural").textContent = Number($("count").value || 1) === 1 ? "" : "s";
+  $("summaryHours").textContent = $("hours").value || "24";
+}
+const log = (label, status, body) => {
+  const line = new Date().toLocaleTimeString() + "  " + label + (status ? "  [" + status + "]" : "") + (body ? "\n" + JSON.stringify(body, null, 1) : "");
+  $("log").textContent = ($("log").textContent === "Nothing yet." ? "" : $("log").textContent + "\n\n") + line;
+};
+function showKey() {
+  const id = load();
+  $("keystate").firstChild.textContent = id ? "Key ready for \"" + id.userId + "\". Public key starts: " + id.pem.split("\n")[1].slice(0, 24) + "..." : "No key yet. Create one first.";
+}
+async function loadSession() {
+  const r = await fetch("/api/me/session");
+  const user = r.ok ? await r.json() : null;
+  if (!user) {
+    $("authstate").textContent = "Sign in with PayPal to create and manage your shopping permissions.";
+    $("signIn").hidden = false;
+    return null;
+  }
+  async function loadCapabilities() {
+    const r = await fetch("/health");
+    if (!r.ok) throw new Error("Could not load agent capabilities.");
+    const data = await r.json(), integrations = data.integrations || {};
+    const values = [
+      ["Channel3", Boolean(integrations.channel3), "Connected", "Using local catalog fallback"],
+      ["Elastic", Boolean(integrations.elastic), "Connected", "Local event history only"],
+      ["Zapier", Boolean(integrations.zapier), "Connected", "No merchant notifications configured"],
+    ];
+    const cards = [...$("capabilities").children];
+    values.forEach((v, i) => {
+      cards[i].classList.toggle("off", !v[1]);
+      cards[i].querySelector("em").textContent = v[1] ? v[2] : v[3];
+    });
+  }
+  $("userId").value = user.userId;
+  // Agent ids are owned by whoever registers them first, so default to one that is unique to this user.
+  if ($("agent").value.trim() === "demo-buyer-agent") $("agent").value = "agent-" + user.userId.replace(/[^a-zA-Z0-9]/g, "").slice(-10).toLowerCase();
+  $("authstate").textContent = "Signed in with PayPal" + (user.email ? " as " + user.email : "") + ".";
+  $("signIn").hidden = true;
+  await ensureDeviceConnected(user.userId);
+  $("connectPayment").hidden = false;
+  updateControlState(user);
+  return user;
+}
+function updateControlState(state) {
+  var shopping = state.automaticShopping || { paused: false };
+  var status = $("shoppingStatus");
+  status.classList.toggle("paused", Boolean(shopping.paused));
+  status.textContent = shopping.paused
+    ? "Automatic shopping is stopped." + (shopping.reason ? " Reason: " + shopping.reason : "")
+    : "Automatic shopping is allowed.";
+  $("pause").hidden = Boolean(shopping.paused);
+  $("resume").hidden = !shopping.paused;
+  $("paymentstate").firstChild.textContent = state.paymentConnected
+    ? "PayPal payment method connected."
+    : "PayPal payment method disconnected. Connect one before starting automatic shopping.";
+  $("connectPayment").hidden = Boolean(state.paymentConnected);
+  $("revpay").hidden = !state.paymentConnected;
+}
+async function ensureDeviceConnected(userId) {
+  let id = load();
+  if (!id || id.userId !== userId) {
+    const k = await newKey();
+    id = { userId, jwk: k.jwk, pem: k.pem };
+    localStorage.setItem(KEY, JSON.stringify(id));
+  }
+  const r = await post("/api/me/public-key", { userId, publicKeyPem: id.pem });
+  if (r.status >= 400) throw new Error(r.body.error || "Could not connect this device.");
+  $("keystate").firstChild.textContent = "This device is connected for " + userId + ".";
+}
+async function post(path, body, headers) {
+  const r = await fetch(path, { method: "POST", headers: Object.assign({ "content-type": "application/json" }, headers || {}), body: JSON.stringify(body) });
+  return { status: r.status, body: await r.json().catch(() => ({})) };
+}
+function need() { const id = load(); if (!id) { log("No key yet. Click \"Create my key\" first."); return null; } return id; }
+const guard = fn => async () => { try { await fn(); } catch (e) { log("Error: " + (e && e.message || e) + " (if this says generateKey/importKey, your browser may not support Ed25519 signing)"); } };
+
+$("mk").onclick = guard(async () => {
+  if (load() && !confirm("Replace your existing key? Rules signed with the old key will stop working.")) return;
+  const k = await newKey();
+  localStorage.setItem(KEY, JSON.stringify({ userId: $("userId").value.trim(), jwk: k.jwk, pem: k.pem }));
+  showKey();
+  const r = await post("/api/me/public-key", { userId: $("userId").value.trim(), publicKeyPem: k.pem, replaceExisting: true });
+  if (r.status >= 400) {
+    log("Created a new key, but device connection failed", r.status, r.body);
+    return;
+  }
+  log("Created and connected this device", r.status, r.body);
+});
+$("signIn").onclick = () => { window.location.href = "/auth/paypal/start"; };
+$("connectPayment").onclick = guard(async () => {
+  const id = need(); if (!id) return;
+  const r = await post("/api/me/payment/start", {});
+  if (r.status >= 400) { log("Connect PayPal payment method", r.status, r.body); return; }
+  window.location.href = r.body.approveUrl;
+});
+$("reg").onclick = guard(async () => {
+  const id = need(); if (!id) return;
+  const replace = confirm("Replace the key currently connected to this user? Permissions signed with the old key will stop working.");
+  const r = await post("/api/me/public-key", { userId: id.userId, publicKeyPem: id.pem, replaceExisting: replace });
+  log("Connect this device", r.status, r.body);
+});
+async function createPermission() {
+  const id = need(); if (!id) return;
+  const dollars = n => Math.round(Number(n) * 100);
+  const now = Date.now();
+  const mandate = {
+    id: "mandate-" + crypto.randomUUID().slice(0, 8), version: 1, userId: id.userId, agentId: $("agent").value.trim(),
+    description: $("desc").value, currency: "USD", maxAmountCents: dollars($("max").value),
+    maxTotalAmountCents: $("total").value ? dollars($("total").value) : undefined,
+    maxPurchases: $("count").value ? Number($("count").value) : undefined,
+    allowedMerchantIds: [$("merchant").value.trim()], allowedCategories: [$("cat").value.trim()],
+    validFrom: new Date(now - 60000).toISOString(), expiresAt: new Date(now + Number($("hours").value) * 3600000).toISOString(),
+    nonce: crypto.randomUUID(),
+  };
+  $("signed").value = JSON.stringify(await signMandate(id.jwk, mandate), null, 1);
+  $("mid").value = mandate.id;
+  log("Signed spending rule " + mandate.id + ". Your agent can now use it.");
+}
+$("sign").onclick = guard(createPermission);
+async function authorizeAndShop() {
+  const user = need(); if (!user) return;
+  let signedMandate;
+  try { signedMandate = JSON.parse($("signed").value); } catch {
+    await createPermission();
+    try { signedMandate = JSON.parse($("signed").value); } catch { return; }
+  }
+  const agentId = $("agent").value.trim(), merchantId = $("merchant").value.trim();
+  let agentKey = loadAgent();
+  if (!agentKey) {
+    const generated = await newKey();
+    agentKey = { jwk: generated.jwk, pem: generated.pem };
+    localStorage.setItem(AGENT_KEY, JSON.stringify(agentKey));
+  }
+  const rKey = await post("/api/me/agent-key", { agentId, publicKeyPem: agentKey.pem, replaceExisting: true });
+  if (rKey.status >= 400) { log("Connect shopping agent", rKey.status, rKey.body); return; }
+  const search = await post("/api/catalog/search", {
+    query: signedMandate.mandate.description, maxAmountCents: signedMandate.mandate.maxAmountCents,
+    currency: signedMandate.mandate.currency, category: $("cat").value.trim(),
+  });
+  if (search.status >= 400 || !search.body.products?.length) { log("Find a matching product", search.status, search.body); return; }
+  log(search.body.source === "channel3" ? "Channel3 found a product" : "Local catalog found a product", search.status, {
+    source: search.body.source, productCount: search.body.products.length,
+  });
+  const product = search.body.products.find(p => p.amountCents <= signedMandate.mandate.maxAmountCents
+    && p.merchantId === merchantId && p.category === $("cat").value.trim());
+  if (!product) { log("Find a matching product", 422, { error: "No product matched this permission." }); return; }
+  const count = Math.max(1, Number(signedMandate.mandate.maxPurchases || 1));
+  let completed = 0, failed = 0;
+  for (let i = 0; i < count; i++) {
+    const cart = await signCart(agentKey.jwk, {
+      cartId: "cart-" + crypto.randomUUID(), mandateId: signedMandate.mandate.id, mandateHash: signedMandate.mandateHash,
+      agentId, merchantId: product.merchantId, amountCents: product.amountCents, currency: product.currency,
+      category: product.category, createdAt: new Date().toISOString(),
+    });
+    const checkout = await post("/api/checkout", {
+      signedMandate, signedCart: cart, mode: "autonomous",
+      purchase: { amountCents: product.amountCents, currency: product.currency, category: product.category, description: product.description },
+    });
+    if (checkout.status < 400) completed++; else { failed++; log("Purchase " + (i + 1) + " of " + count, checkout.status, checkout.body); break; }
+    log("Purchase " + (i + 1) + " of " + count, checkout.status, checkout.body);
+  }
+  log("Authorize and start shopping", failed ? 422 : 201, { requested: count, completed, failed });
+  showOrders(await getOrders(user));
+}
+async function getOrders(id) {
+  const request = { action: "view_orders", userId: id.userId, subjectId: id.userId, issuedAt: new Date().toISOString(), nonce: crypto.randomUUID() };
+  const r = await post("/api/users/" + encodeURIComponent(id.userId) + "/orders", { signedControl: await signControl(id.jwk, request) });
+  return r.status < 400 ? r.body : [];
+}
+const AGENT_KEY = "warrant.prototype.agent";
+function loadAgent() {
+  try { const saved = JSON.parse(localStorage.getItem(AGENT_KEY) || "null"); if (saved) return saved; } catch {}
+  return null;
+}
+async function control(path, action, subjectId, label) {
+  const id = need(); if (!id) return;
+  const request = { action, userId: id.userId, subjectId, reason: $("reason").value.trim() || undefined, issuedAt: new Date().toISOString(), nonce: crypto.randomUUID() };
+  const r = await post(path, { signedControl: await signControl(id.jwk, request) });
+  log(label, r.status, r.body);
+  if (r.status < 400) {
+    if (action === "pause_agent") updateControlState({ automaticShopping: { paused: true, since: r.body.since, reason: r.body.reason }, paymentConnected: !$("revpay").hidden });
+    if (action === "resume_agent") updateControlState({ automaticShopping: { paused: false }, paymentConnected: !$("revpay").hidden });
+    if (action === "revoke_payment_authorization") updateControlState({ automaticShopping: { paused: !$("resume").hidden }, paymentConnected: false });
+  }
+}
+function showOrders(rows) {
+  const el = $("orders"); el.textContent = "";
+  if (!rows.length) { const empty = document.createElement("small"); empty.textContent = "No purchases recorded for this user."; el.append(empty); return; }
+  rows.forEach(o => {
+    const item = document.createElement("div"); item.className = "order";
+    const title = document.createElement("strong"); title.textContent = (Number(o.amountCents) / 100).toFixed(2) + " " + o.currency + " - " + o.status;
+    const meta = document.createElement("small"); meta.textContent = new Date(o.createdAt).toLocaleString() + " | " + (o.category || "uncategorized") + " | " + o.merchantId;
+    item.append(title, meta); el.append(item);
+  });
+}
+async function loadOrders() {
+  const id = need(); if (!id) return;
+  const request = { action: "view_orders", userId: id.userId, subjectId: id.userId, issuedAt: new Date().toISOString(), nonce: crypto.randomUUID() };
+  const r = await post("/api/users/" + encodeURIComponent(id.userId) + "/orders", { signedControl: await signControl(id.jwk, request) });
+  if (r.status >= 400) { log("Refresh purchases", r.status, r.body); return; }
+  showOrders(r.body); log("Refresh purchases", r.status, { count: r.body.length });
+}
+const uid = () => (load() || {}).userId || $("userId").value.trim();
+$("pause").onclick = guard(() => control("/api/users/" + encodeURIComponent(uid()) + "/pause-agent", "pause_agent", uid(), "Pause my agent"));
+$("resume").onclick = guard(() => control("/api/users/" + encodeURIComponent(uid()) + "/resume-agent", "resume_agent", uid(), "Resume my agent"));
+$("revpay").onclick = guard(() => control("/api/users/" + encodeURIComponent(uid()) + "/revoke-payment", "revoke_payment_authorization", uid(), "Cancel my saved payment"));
+$("revoke").onclick = guard(() => { const m = $("mid").value.trim(); if (!m) { log("Enter a mandate id."); return; }
+  return control("/api/mandates/" + encodeURIComponent(m) + "/revoke", "revoke_mandate", m, "Cancel spending rule " + m); });
+$("loadOrders").onclick = guard(loadOrders);
+$("startShopping").onclick = guard(async () => {
+  const button = $("startShopping"); button.disabled = true;
+  try { await authorizeAndShop(); } finally { button.disabled = false; }
+});
+["desc", "max", "count", "hours"].forEach(id => $(id).addEventListener("input", updateSummary));
+updateSummary();
+showKey();
+loadSession().catch(e => log("Could not check PayPal sign-in: " + (e && e.message || e)));
+loadCapabilities().catch(e => log("Could not load agent capabilities: " + (e && e.message || e)));
+if (!(window.crypto && crypto.subtle)) log("Signing is unavailable here: browsers only allow it on https pages or localhost. Open this page over https.");
+</script></body></html>

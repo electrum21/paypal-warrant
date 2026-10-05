@@ -8,7 +8,11 @@ export const Mandate = z.object({
   agentId: z.string().min(1),
   description: z.string(),                       // what the user actually said, in plain English
   currency: z.string().length(3),
-  maxAmountCents: z.number().int().positive(),
+  maxAmountCents: z.number().int().positive(),      // per purchase
+  /** Cumulative cap across every purchase under this mandate. Signed by the user, so the agent cannot raise it. */
+  maxTotalAmountCents: z.number().int().positive().optional(),
+  /** How many purchases this mandate may fund. Autonomous checkout treats an unset value as 1 (single use). */
+  maxPurchases: z.number().int().positive().optional(),
   allowedMerchantIds: z.array(z.string()).min(1),
   allowedCategories: z.array(z.string()).optional(),
   validFrom: z.string(),                         // ISO 8601
@@ -17,10 +21,42 @@ export const Mandate = z.object({
 });
 export type Mandate = z.infer<typeof Mandate>;
 
+/** Signed by the USER's key. Proves the user set these limits; the agent cannot forge or widen them. */
 export interface SignedMandate {
   mandate: Mandate;
   mandateHash: string;                           // sha256 of canonical JSON, hex
-  signature: string;                             // ed25519, base64
+  signature: string;                             // ed25519 by the user key, base64
+}
+
+/** One concrete purchase the agent asks to make under a mandate. */
+export const Cart = z.object({
+  cartId: z.string().min(8),                     // unique per purchase; a merchant accepts each id once
+  mandateId: z.string().min(1),
+  mandateHash: z.string().min(1),
+  agentId: z.string().min(1),
+  merchantId: z.string().min(1),
+  amountCents: z.number().int().positive(),
+  currency: z.string().length(3),
+  category: z.string().optional(),
+  createdAt: z.string(),                         // ISO 8601, set by the agent (evidence only)
+});
+export type Cart = z.infer<typeof Cart>;
+
+/** Signed by the AGENT's key. Proves this agent chose this exact purchase under this exact mandate. */
+export interface SignedCart {
+  cart: Cart;
+  cartHash: string;
+  signature: string;                             // ed25519 by the agent key, base64
+}
+
+/** Result of checking who signed what. `ok` requires every part to hold. */
+export interface AuthorizationCheck {
+  ok: boolean;
+  mandateSignedByUser: boolean;
+  cartSignedByAgent: boolean;
+  cartBoundToMandate: boolean;
+  cartMatchesPurchase: boolean;
+  problems: string[];                            // plain-language reasons, empty when ok
 }
 
 export interface Purchase {

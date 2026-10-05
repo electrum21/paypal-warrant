@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateKeys, signMandate, verifyMandate } from "./sign.js";
-import { checkPurchase } from "./check.js";
+import { checkCumulative, checkPaymentAuthorization, checkPurchase } from "./check.js";
 import type { Mandate, Purchase } from "./types.js";
 
 const mandate: Mandate = {
@@ -66,5 +66,49 @@ describe("revoked mandates", () => {
     const codes = (revokedAt: string) => checkPurchase(mandate, ok, { revokedAt }).map(f => f.code);
     expect(codes("2026-11-01T10:00:00Z")).toContain("MANDATE_REVOKED");
     expect(codes("2026-11-01T13:00:00Z")).not.toContain("MANDATE_REVOKED");
+  });
+});
+
+describe("checkCumulative", () => {
+  const m: Mandate = { ...mandate, maxTotalAmountCents: 20000, maxPurchases: 2 };
+  it("passes while count and total stay within the limits", () => {
+    expect(checkCumulative(m, 9500, { spentAmountCents: 9500, purchaseCount: 1 })).toEqual([]);
+  });
+  it("flags the purchase that would exceed the total, with the remaining budget", () => {
+    const f = checkCumulative(m, 9500, { spentAmountCents: 11000, purchaseCount: 1 });
+    expect(f.map(x => x.code)).toEqual(["CUMULATIVE_AMOUNT_EXCEEDED"]);
+    expect(f[0].details).toMatchObject({ remainingCents: 9000 });
+  });
+  it("flags a purchase beyond the purchase count", () => {
+    expect(checkCumulative(m, 100, { spentAmountCents: 100, purchaseCount: 2 }).map(x => x.code)).toEqual(["PURCHASE_COUNT_EXCEEDED"]);
+  });
+  it("reports both when both are exceeded", () => {
+    expect(checkCumulative(m, 15000, { spentAmountCents: 15000, purchaseCount: 2 }).map(x => x.code)).toEqual(["PURCHASE_COUNT_EXCEEDED", "CUMULATIVE_AMOUNT_EXCEEDED"]);
+  });
+  it("applies the default purchase limit only when the mandate sets none", () => {
+    expect(checkCumulative(mandate, 100, { spentAmountCents: 0, purchaseCount: 1 }, 1).map(x => x.code)).toEqual(["PURCHASE_COUNT_EXCEEDED"]);
+    expect(checkCumulative(mandate, 100, { spentAmountCents: 0, purchaseCount: 5 })).toEqual([]);
+    expect(checkCumulative({ ...mandate, maxPurchases: 9 }, 100, { spentAmountCents: 0, purchaseCount: 5 }, 1)).toEqual([]);
+  });
+});
+
+describe("pause and payment authorization checks", () => {
+  it("flags a purchase made while the agent was paused, with the user's reason", () => {
+    const f = checkPurchase(mandate, ok, { agentPaused: { reason: "lost my phone" } });
+    expect(f.map(x => x.code)).toEqual(["AGENT_PAUSED"]);
+    expect(f[0].message).toContain("lost my phone");
+  });
+  it("includes the revocation reason in the finding", () => {
+    const f = checkPurchase(mandate, ok, { revokedAt: "2026-11-01T10:00:00Z", revokedReason: "changed my mind" });
+    expect(f[0].message).toContain("changed my mind");
+  });
+  const now = new Date("2026-11-01T12:00:00Z");
+  it("accepts an active, unexpired payment authorization", () => {
+    expect(checkPaymentAuthorization({ status: "ACTIVE", expiresAt: "2026-11-02T00:00:00Z" }, now)).toEqual([]);
+    expect(checkPaymentAuthorization({ status: "ACTIVE", expiresAt: null }, now)).toEqual([]);
+  });
+  it("rejects a revoked or expired payment authorization", () => {
+    expect(checkPaymentAuthorization({ status: "REVOKED" }, now).map(f => f.code)).toEqual(["PAYMENT_AUTHORIZATION_REVOKED"]);
+    expect(checkPaymentAuthorization({ status: "ACTIVE", expiresAt: "2026-11-01T11:00:00Z" }, now).map(f => f.code)).toEqual(["PAYMENT_AUTHORIZATION_EXPIRED"]);
   });
 });

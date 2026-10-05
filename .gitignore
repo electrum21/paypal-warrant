@@ -3,3 +3,4 @@ node_modules
 *.db
 *.db-journal
 .demo-agent.json
+.demo-user.json
