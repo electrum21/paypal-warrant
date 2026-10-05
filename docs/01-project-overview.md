@@ -120,6 +120,8 @@ Verified against the sandbox on 4 October 2026:
 | `accept-claim` | **Works** with `{ note, accept_claim_type: "REFUND" }` (the only type offered). Buyer refunded in full, seller fee reversed |
 | `make-offer` (partial refund) | **Not offered** for this dispute type and stage. Never exercised |
 | `adjudicate` (sandbox settle) | **Not offered** to the merchant account (no link; `ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE`). Cause unconfirmed |
+| Log in with PayPal (identity sign-in) | **Works.** Sign-in through an HTTPS tunnel; the browser key binds to the authenticated PayPal subject (`docs/10-sso-quick-run-guide.md`) |
+| Vault payment method + autonomous charge | **Works.** Setup token approved, payment-method token exchanged and stored, and the buyer agent completed a no-click purchase with it |
 | Webhook receiver + `verify-webhook-signature` | Written; **never run** (needs a public URL) |
 | PayPal Agent Toolkit / MCP server | Not used |
 
@@ -163,15 +165,15 @@ Dispute `workflow_state`: `PROPOSED` → `APPROVED` → `SUBMITTED`, or `FAILED`
 - Admin token can be passed in the URL query string, which can end up in logs. Fine for a sandbox demo only.
 - Webhook verification re-serializes the parsed JSON rather than forwarding the raw body; likely fine, but confirm in the sandbox.
 - Amount math assumes 2-decimal currencies.
-- By default checkout **records but does not enforce** findings, so out-of-mandate purchases are sold and later defended. Set `ENFORCE_MANDATE=true` to refuse them with a 422 (not yet tested).
+- By default checkout **records but does not enforce** findings, so out-of-mandate purchases are sold and later defended. Set `ENFORCE_MANDATE=true` to refuse them with a 422 (verified: an over-limit checkout is refused with no PayPal order created).
 - On Render's free tier the filesystem is ephemeral; the SQLite file would be lost on redeploy. Use a persistent disk or move to a hosted database before relying on the deployed demo.
 - A signed mandate is evidence, not a guarantee of how PayPal rules.
 
 ## 11. Status snapshot (5 October 2026)
 
-**Built and tested (73 tests passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, the Channel3 adapter.
-**Run against the PayPal sandbox:** checkout and capture, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), and the discovery that partial-refund offers are not available for this dispute type. Channel3, Elastic and Zapier were each run live.
-**Not yet run:** webhooks (and signature verification), Render deployment, `ENFORCE_MANDATE`, the prompt-injection test through `buy-request`, `make-offer` against a dispute that allows it.
+**Built and tested (165 tests in 15 files passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, the Channel3 adapter, and the Express routes with a stubbed PayPal (checkout, key registration, payment-method connect, webhook verification and deduplication, user page).
+**Run against the PayPal sandbox:** checkout and capture, Log in with PayPal identity sign-in, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), `ENFORCE_MANDATE=true` (422), the Vault payment-method connection, the buyer agent's no-click autonomous purchase with the linked payment method, and the discovery that partial-refund offers are not available for this dispute type. Channel3, Elastic and Zapier were each run live.
+**Not yet run:** live webhooks (and signature verification), Render deployment, the prompt-injection test through `buy-request`, `make-offer` against a dispute that allows it.
 
 Full results are in `docs/03-testing-and-usage.md`, part K.
 

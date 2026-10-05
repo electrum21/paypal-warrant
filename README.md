@@ -5,12 +5,28 @@ when it buys; if the purchase is later disputed, the merchant's agent assembles 
 checks the purchase against the mandate with plain code, and proposes a response through the
 **PayPal Disputes API** (sandbox only). The merchant approves before anything is submitted.
 
-> Status: the dispute pipeline is built. A webhook (or manual import) turns a dispute into a stored
-> **proposal**: signature check, mandate check, deterministic decision, evidence pack, and an AI-written
-> explanation. A merchant approves it on `/admin`; only then are calls made to the PayPal Disputes API.
-> Business logic is tested (73 tests). The Express routes, the admin page's connection to real routes, and
-> **every PayPal call** (orders, webhooks, disputes) are **untested against the sandbox**. The Disputes API
-> request bodies in `src/paypal/disputes.ts` are unverified guesses from PayPal's docs.
+> **Status (verified 4–5 October 2026).** The dispute pipeline is built. A webhook (or manual import)
+> turns a dispute into a stored **proposal**: signature check, mandate check, deterministic decision,
+> evidence pack, and an AI-written explanation. A merchant approves it on `/admin`; only then are calls
+> made to the PayPal Disputes API.
+>
+> **Tested:** 165 tests in 15 files pass (`npm test`); `npm run typecheck` is clean. The Express routes are
+> covered with a stubbed PayPal: checkout, key registration, payment-method connect, webhook verification
+> and deduplication, and the user page. Business logic, mandate signing, and the decision engine are
+> covered directly.
+>
+> **Run against the PayPal sandbox:** order create and capture, **Log in with PayPal** identity sign-in,
+> dispute creation from the buyer account, dispute import and matching to the stored capture,
+> `provide-evidence` (JSON, `evidence_type: "OTHER"` → case moved to `UNDER_REVIEW`), `accept-claim`
+> (`{ note, accept_claim_type: "REFUND" }` → buyer refunded), `ENFORCE_MANDATE=true` → 422, the PayPal
+> Vault payment-method connection, and the buyer agent making a **no-click autonomous purchase** with the
+> linked payment method. Channel3, Elastic, and Zapier were each run live.
+>
+> **Not verified:** live webhook delivery and signature verification (needs a public URL), the Render
+> deployment, `make-offer` against a dispute that allows it (PayPal does not offer it on an `UNAUTHORISED`
+> dispute, so the over-limit case is shown as a **blocked proposal**), `adjudicate` (not offered to the
+> sandbox merchant account), a prompt-injection attempt through `buy-request`, and startup from a fresh
+> `.env` copied from `.env.example`.
 
 ## Honest scope
 - The buyer agent and merchant agent are both built by us; PayPal's real dispute process is not simulated beyond the sandbox.
@@ -58,7 +74,7 @@ Optional sponsor integrations:
 ## Flow
 1. Buyer agent `POST /api/checkout` with the **user-signed mandate** and an **agent-signed cart** (the exact purchase). Warrant verifies both signatures against the registered user and agent keys, checks the cart is bound to the mandate and matches the purchase, accepts each cart once, records findings, and creates the PayPal order.
 2. Buyer approves; `/paypal/return` captures and stores the capture ID.
-3. A dispute is raised on that capture. `CUSTOMER.DISPUTE.CREATED` (verified) or `POST /api/disputes/import` runs the pipeline.
+3. A dispute is raised on that capture. `CUSTOMER.DISPUTE.CREATED` (receiver implemented and locally tested; live delivery not yet confirmed) or `POST /api/disputes/import` runs the pipeline.
 4. Merchant reviews the proposal on `/admin`, edits the note, approves or dismisses.
 5. On approve: evidence, offer or accept-claim is sent with a stable `PayPal-Request-Id`. Failures are recorded and retryable.
 
@@ -71,14 +87,22 @@ Optional sponsor integrations:
 - `src/repo.ts`   small helpers for keys, mandates and orders
 - `src/db/`       SQLite schema
 
-## Week-1 checklist
-- [ ] Sandbox: create a dispute from the buyer account and note which webhooks fire
-- [ ] Confirm dispute reason codes (the code assumes `UNAUTHORISED`)
-- [ ] Submit evidence via the API and see which formats the sandbox accepts
-- [ ] Try offer, partial refund and settle
+## Verification checklist
+Verified (4–5 Oct 2026, full detail in `docs/03-testing-and-usage.md` part K):
+- [x] Sandbox: create a dispute from the buyer account (buyer UI path documented in `docs/03` part F)
+- [x] Confirm dispute reason codes (observed `UNAUTHORISED`, stage `CHARGEBACK`; buyer and merchant get different dispute IDs)
+- [x] Submit evidence via the API (JSON body, `evidence_type: "OTHER"`; the case moved to `UNDER_REVIEW`)
+- [x] Accept a claim (`{ note, accept_claim_type: "REFUND" }`; buyer refunded, seller fee reversed)
+- [x] Verify the Disputes API request bodies for evidence and accept-claim
+- [x] Run `smoke:order` then `/api/checkout` against the sandbox and confirm the capture ID matches the dispute's seller transaction
+- [x] PayPal Vault payment-method connection (`link-payment`) and a no-click autonomous charge
+- [x] Log in with PayPal identity sign-in (`docs/10-sso-quick-run-guide.md`) and the buyer agent completing an autonomous purchase with the linked payment method (5 Oct 2026)
+
+Still open:
+- [ ] Which webhook event types PayPal sends at creation, update, and resolution; deploy the webhook receiver (Render), register the webhook ID, and confirm `verified=1`
+- [ ] `make-offer` / partial refund and `adjudicate` against a dispute type that allows them (neither is offered on `UNAUTHORISED` at `CHARGEBACK`)
 - [ ] Check which of these the PayPal Agent Toolkit exposes
-- [ ] Verify the Disputes API request bodies (evidence type, accept-claim reason, JSON vs multipart)
-- [ ] Run `smoke:order` then `/api/checkout` against the sandbox and confirm the capture ID matches the dispute's seller transaction
-- [ ] Deploy the webhook receiver (Render) and register the webhook ID
+- [ ] Prompt injection through `buy-request`
+- [ ] Start the server from a fresh `.env` copied from `.env.example`
 
 MIT licensed.
