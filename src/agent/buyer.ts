@@ -72,6 +72,8 @@ export interface ProductCandidate {
   currency: string;
   category: string;
   merchantId: string;
+  /** Where the candidate came from. Only Channel3 ids can be verified against Channel3 later. */
+  source?: "channel3" | "local";
 }
 
 export const DEMO_CATALOG: ProductCandidate[] = [
@@ -124,7 +126,7 @@ export function planShoppingRequest(
   const signedMandate = signFor(user, { ...mandate, description: request, currency: intent.currency,
     maxAmountCents: intent.maxAmountCents, allowedCategories: intent.allowedCategories });
   const signedCart = cartFor(agent, signedMandate, { merchantId: product.merchantId, amountCents: product.amountCents,
-    currency: product.currency, category: product.category });
+    currency: product.currency, category: product.category, productId: product.source === "channel3" ? product.id : undefined });
   return { intent, product, mandate: signedMandate, cart: signedCart };
 }
 
@@ -152,12 +154,13 @@ export function signFor(user: DemoUser, mandate: Mandate): SignedMandate {
 /** The AGENT signs one concrete purchase under a mandate the user already signed. */
 export function cartFor(
   agent: DemoAgent, signed: SignedMandate,
-  purchase: { merchantId: string; amountCents: number; currency?: string; category?: string }, now = new Date(),
+  purchase: { merchantId: string; amountCents: number; currency?: string; category?: string; productId?: string }, now = new Date(),
 ): SignedCart {
   const cart: Cart = {
     cartId: `cart-${randomUUID()}`, mandateId: signed.mandate.id, mandateHash: signed.mandateHash,
     agentId: agent.agentId, merchantId: purchase.merchantId, amountCents: purchase.amountCents,
     currency: purchase.currency ?? signed.mandate.currency, category: purchase.category, createdAt: now.toISOString(),
+    ...(purchase.productId ? { productId: purchase.productId } : {}),
   };
   return signCart(cart, agent.privateKeyPem);
 }

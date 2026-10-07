@@ -1,5 +1,7 @@
 import type { DisputeDecision } from "./decide.js";
 import type { AuthorizationCheck, Finding, Purchase, SignedCart, SignedMandate } from "../mandate/types.js";
+import type { ProductCheck } from "../integrations/channel3.js";
+import type { DeliveryEvidence } from "../repo.js";
 
 export interface EvidencePackInput {
   disputeId: string;
@@ -11,6 +13,10 @@ export interface EvidencePackInput {
   purchase: Purchase;
   findings: Finding[];
   decision: DisputeDecision;
+  /** What Channel3 says the purchased product is, checked independently of what the agent declared. */
+  productCheck?: ProductCheck;
+  /** Delivery proof supplied after the dispute opened (for example by a Zapier Zap). */
+  deliveryProof?: DeliveryEvidence[];
   /** What the user (or the merchant admin, for stop actions) did to limit the agent. Shown so a revocation is part of the record. */
   userControls?: { action: string; subjectId: string; reason?: string; appliedAt: string; via: string }[];
   generatedAt: string;                           // injected so output is deterministic
@@ -44,7 +50,11 @@ export function buildEvidencePack(i: EvidencePackInput): EvidencePack {
     ...(i.userControls?.length ? [
       `   User control actions on record: ${i.userControls.map(c => `${c.action} (${c.subjectId}) at ${c.appliedAt} via ${c.via}${c.reason ? `, reason: ${c.reason}` : ""}`).join("; ")}.`,
     ] : []),
-    `5. Proposed response: ${i.decision.action}. ${i.decision.reason}`,
+    ...(i.productCheck ? productLines(i.productCheck) : []),
+    ...(i.deliveryProof?.length ? [
+      `${i.productCheck ? 6 : 5}. Delivery proof on file: ${i.deliveryProof.map(d => `${d.carrier} tracking ${d.trackingNumber}, delivered ${d.deliveredAt}`).join("; ")}.`,
+    ] : []),
+    `${5 + (i.productCheck ? 1 : 0) + (i.deliveryProof?.length ? 1 : 0)}. Proposed response: ${i.decision.action}. ${i.decision.reason}`,
   ];
   return {
     notes: lines.join("\n"),
@@ -59,7 +69,23 @@ export function buildEvidencePack(i: EvidencePackInput): EvidencePack {
       purchase: i.purchase,
       findings: i.findings,
       userControls: i.userControls ?? [],
+      productCheck: i.productCheck ?? null,
+      deliveryProof: i.deliveryProof ?? [],
       decision: i.decision,
     },
   };
+}
+
+const usd = (cents: number, cur: string) => `${(cents / 100).toFixed(2)} ${cur}`;
+
+function productLines(p: ProductCheck): string[] {
+  if (p.lookup !== "found") return [`5. Product verification (Channel3): ${p.note}`];
+  const lines = [
+    `5. Product verification (Channel3, checked ${p.checkedAt}): ${p.title ?? p.productId}${p.brand ? ` by ${p.brand}` : ""}. ${p.note}`,
+  ];
+  if (p.marketLowCents !== undefined && p.marketHighCents !== undefined) {
+    lines.push(`   Paid ${usd(p.paidCents, p.currency)}; retailers listed it from ${usd(p.marketLowCents, p.currency)} to ${usd(p.marketHighCents, p.currency)} at the time of the check`
+      + (p.paidWithinListedRange === false ? " (the amount paid is outside that range)." : "."));
+  }
+  return lines;
 }

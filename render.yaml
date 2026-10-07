@@ -2,7 +2,7 @@ services:
   - type: web
     name: warrant
     runtime: node
-    buildCommand: npm ci
+    buildCommand: npm ci && npm run build:web
     startCommand: npm start
     healthCheckPath: /health
     envVars:
@@ -21,6 +21,20 @@ services:
       - key: PAYPAL_CLIENT_SECRET
         sync: false
       - key: PAYPAL_WEBHOOK_ID
+        sync: false
+      - key: CHANNEL3_URL
+        sync: false
+      - key: CHANNEL3_API_KEY
+        sync: false
+      - key: ELASTIC_URL
+        sync: false
+      - key: ELASTIC_API_KEY
+        sync: false
+      - key: ZAPIER_WEBHOOK_URL
+        sync: false
+      - key: EVIDENCE_WEBHOOK_SECRET
+        sync: false
+      - key: STUDIO_LLM_API_KEY
         sync: false
     disk:
       name: warrant-data

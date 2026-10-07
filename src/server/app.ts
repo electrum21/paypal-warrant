@@ -1,6 +1,8 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { Readable } from "node:stream";
 import { z } from "zod";
 import type { Config } from "../config.js";
 import type { Db } from "../db/index.js";
@@ -8,17 +10,18 @@ import { verifyWebhook } from "../paypal/webhooks.js";
 import { captureOrder, chargeVaultedToken, createOrder, createPayPalSetupToken, exchangePayPalLoginCode, exchangePayPalSetupToken, getPayPalProfile, PAYPAL_LOGIN_BASE, PayPalHttpError } from "../paypal/client.js";
 import { paypalDisputes, type DisputesApi } from "../paypal/disputes.js";
 import { anthropicClient, geminiClient, type LlmClient } from "../ai/draft.js";
-import { approveDispute, getDispute, listDisputes, processDispute, rejectDispute, ServiceError, type Deps } from "../disputes/service.js";
+import { addDeliveryEvidence, approveDispute, getDispute, listDisputes, processDispute, rejectDispute, ServiceError, type Deps } from "../disputes/service.js";
 import { Cart, Mandate, type Purchase } from "../mandate/types.js";
 import { checkPaymentAuthorization, checkPurchase } from "../mandate/check.js";
 import { ControlRequest, controlIsFresh, verifyControl, type ControlAction } from "../mandate/control.js";
 import { verifyAuthorization } from "../mandate/authorize.js";
 import { isEd25519PublicKeyPem } from "../mandate/sign.js";
-import { cartAlreadyUsed, getAgentEvent, getAgentKey, getAgentOwner, getAgentPause, getMandateUsage, getPaymentAuthorization, getRevocation, getUserKey, linkPaymentToken, listMandateUses, listUserOrders, markCaptured, markMandateUse, recordControlEvent, recordKeyChange, recordOrder, registerAgentKey, registerUserKey, reserveMandateUse, revokePaymentAuthorization, saveMandate, toIso, type UseStatus } from "../repo.js";
+import { cartAlreadyUsed, getAgentEvent, getAgentKey, getAgentOwner, getAgentPause, getMandateUsage, getPaymentAuthorization, getRevocation, getUserKey, linkPaymentToken, listMandateUses, listUserOrders, markCaptured, markMandateUse, recordControlEvent, recordKeyChange, recordOrder, registerAgentKey, registerUserKey, reserveMandateUse, revokePaymentAuthorization, saveMandate, saveProductCheck, toIso, type UseStatus } from "../repo.js";
 import { adminPageHtml } from "./adminPage.js";
-import { searchChannel3 } from "../integrations/channel3.js";
-import { indexAgentEvent, searchAgentEvents } from "../integrations/elastic.js";
-import { notifyZapier } from "../integrations/zapier.js";
+import { productFindings, searchChannel3, verifyProduct } from "../integrations/channel3.js";
+import { caseSummary, findSimilarCases, indexAgentEvent, indexDisputeCase, outcomeOf, searchAgentEvents, type DisputeCase } from "../integrations/elastic.js";
+import { buildZapierEvent, notifyZapier } from "../integrations/zapier.js";
+import { buildAnalytics } from "../analytics/datasets.js";
 
 const CheckoutBody = z.object({
   signedMandate: z.object({ mandate: Mandate, mandateHash: z.string(), signature: z.string() }),
@@ -37,18 +40,37 @@ const CheckoutBody = z.object({
 const userPageHtml = readFileSync(new URL("./userPage.html", import.meta.url), "utf8");
 
 export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi; llm?: LlmClient } = {}) {
+  const elasticConfig = () => cfg.ELASTIC_URL && cfg.ELASTIC_API_KEY
+    ? { url: cfg.ELASTIC_URL, apiKey: cfg.ELASTIC_API_KEY, index: cfg.ELASTIC_INDEX, caseIndex: cfg.ELASTIC_CASE_INDEX } : undefined;
+  const channel3Config = () => cfg.CHANNEL3_URL && cfg.CHANNEL3_API_KEY ? { url: cfg.CHANNEL3_URL, apiKey: cfg.CHANNEL3_API_KEY } : undefined;
   const deps: Deps = {
     db,
     disputes: inject.disputes ?? paypalDisputes(cfg),
     llm: inject.llm ?? (cfg.GEMINI_API_KEY ? geminiClient(cfg.GEMINI_API_KEY, cfg.GEMINI_MODEL)
         : cfg.ANTHROPIC_API_KEY ? anthropicClient(cfg.ANTHROPIC_API_KEY, cfg.ANTHROPIC_MODEL) : undefined),
     onAgentEvent: async eventId => {
-      const elastic = cfg.ELASTIC_URL && cfg.ELASTIC_API_KEY
-        ? { url: cfg.ELASTIC_URL, apiKey: cfg.ELASTIC_API_KEY, index: cfg.ELASTIC_INDEX } : undefined;
-      await indexAgentEvent(elastic, getAgentEvent(db, eventId));
+      await indexAgentEvent(elasticConfig(), getAgentEvent(db, eventId));
     },
-    onProposal: async (disputeId, message, data) =>
-      notifyZapier(cfg.ZAPIER_WEBHOOK_URL, { type: "proposal_ready", disputeId, message, data }),
+    onProposal: async (disputeId, message, data) => {
+      const e = buildZapierEvent({ disputeId, message, data }, cfg.APP_URL);
+      await notifyZapier(cfg.ZAPIER_WEBHOOK_URL, e);
+    },
+    // Channel3: verify WHAT was bought. Elastic: find similar past cases. Both are optional and fail soft.
+    verifyProduct: channel3Config() ? (productId, claim) => verifyProduct(channel3Config(), productId, claim) : undefined,
+    findPrecedents: elasticConfig() ? (text, excludeDisputeId) => findSimilarCases(elasticConfig(), text, { excludeDisputeId }) : undefined,
+    onDisputeChanged: elasticConfig() ? async id => {
+      const es = elasticConfig();
+      const r = getDispute(db, id);
+      const agent = db.prepare(`SELECT m.agent_id AS agent_id FROM disputes d JOIN orders o ON o.id = d.order_id
+                                JOIN mandates m ON m.id = o.mandate_id WHERE d.id = ?`).get(id) as { agent_id: string } | undefined;
+      const findingCodes = (r.findings ?? []).map(f => f.code);
+      const action = r.decision?.action ?? "none";
+      const facts = { reason: r.reason ?? "UNKNOWN", action, findingCodes, category: r.purchase?.category, productTitle: r.productCheck?.title,
+        productVerdict: r.productCheck?.categoryVerdict, hasDeliveryProof: Boolean(r.deliveryProof?.length) };
+      const doc: DisputeCase = { disputeId: r.id, paypalDisputeId: r.paypalDisputeId, merchantOutcome: outcomeOf(r.workflowState), amountCents: r.amountCents,
+        currency: r.purchase?.currency ?? "USD", agentId: agent?.agent_id, summary: caseSummary(facts), createdAt: new Date().toISOString(), ...facts };
+      await indexDisputeCase(es, doc);
+    } : undefined,
   };
   const app = express();
   /** Carts with a charge currently awaiting PayPal in this process. Across processes, PayPal's idempotency key is the backstop. */
@@ -102,7 +124,7 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
     res.json({ ok: true, webhookVerification: Boolean(cfg.PAYPAL_WEBHOOK_ID), llm: Boolean(deps.llm), admin: Boolean(cfg.ADMIN_TOKEN),
       paypalLogin: loginConfigured,
       integrations: { channel3: Boolean(cfg.CHANNEL3_URL && cfg.CHANNEL3_API_KEY), elastic: Boolean(cfg.ELASTIC_URL && cfg.ELASTIC_API_KEY),
-        zapier: Boolean(cfg.ZAPIER_WEBHOOK_URL), agGrid: true, postman: true, apimatic: true } });
+        zapier: Boolean(cfg.ZAPIER_WEBHOOK_URL), agGrid: true, agStudio: existsSync(fileURLToPath(new URL("../../web/dist", import.meta.url))), studioAgent: Boolean(cfg.STUDIO_LLM_API_KEY), postman: true, apimatic: true } });
   });
 
   app.get("/auth/paypal/start", (_req, res) => {
@@ -265,9 +287,19 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
     // Revocation and pause are read at the moment of the request, so they take effect immediately.
     const revocation = getRevocation(db, sm.mandate.id, sm.mandate.userId);
     const pause = getAgentPause(db, sm.mandate.userId, p.at);
-    const findings = checkPurchase(sm.mandate, p, {
+    const mandateFindings = checkPurchase(sm.mandate, p, {
       revokedAt: revocation?.revokedAt ?? null, revokedReason: revocation?.reason, agentPaused: pause.paused ? pause : null,
     });
+    // Channel3: the cart commits the agent to a specific product. Check what that product really is, so an agent cannot
+    // slip a disallowed item past the mandate by declaring a friendlier category. A failed lookup never blocks a purchase.
+    const productId = signedCart.cart.productId;
+    const productCheck = productId && channel3Config()
+      ? await verifyProduct(channel3Config(), productId, { declaredCategory: p.category, allowedCategories: sm.mandate.allowedCategories, amountCents: p.amountCents, currency: p.currency })
+      : undefined;
+    const findings = [...mandateFindings, ...productFindings(productCheck)];
+    const snapshotProduct = (orderRowId: number) => {
+      if (productCheck && productCheck.lookup !== "unavailable") saveProductCheck(db, orderRowId, productCheck);
+    };
     const blocked = findings.some(f => f.severity === "block");
     // Autonomous mode moves money with no human in the loop, so it ALWAYS enforces the mandate,
     // whatever ENFORCE_MANDATE says. Out-of-mandate purchases are only ever recorded when a person approves them.
@@ -334,6 +366,7 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
           currency: p.currency, category: p.category, findings, at: p.at, signedCart, captureId: capture.id,
         });
         markMandateUse(db, cartId, "CAPTURED", { orderId: orderRowId });
+        snapshotProduct(orderRowId);
       } catch {
         return res.status(409).json({ error: "This signed cart was already used for an order." });
       }
@@ -356,10 +389,10 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
       returnUrl: `${cfg.APP_URL}/paypal/return`, cancelUrl: `${cfg.APP_URL}/paypal/cancel`,
     });
     saveMandate(db, sm);
-    recordOrder(db, {
+    snapshotProduct(recordOrder(db, {
       paypalOrderId: order.id, mandateId: sm.mandate.id, merchantId: p.merchantId, amountCents: p.amountCents,
       currency: p.currency, category: p.category, findings, at: p.at, signedCart,
-    });
+    }));
     const approve = order.links.find(l => l.rel === "payer-action" || l.rel === "approve");
     res.status(201).json({ orderId: order.id, approveUrl: approve?.href, findings });
   }));
@@ -581,8 +614,7 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
   app.get("/api/agent-events/search", adminAuth, wrap(async (req, res) => {
     const query = z.string().min(1).safeParse(req.query.q);
     if (!query.success) return res.status(400).json({ error: "Provide ?q=..." });
-    const elastic = cfg.ELASTIC_URL && cfg.ELASTIC_API_KEY
-      ? { url: cfg.ELASTIC_URL, apiKey: cfg.ELASTIC_API_KEY, index: cfg.ELASTIC_INDEX } : undefined;
+    const elastic = elasticConfig();
     res.json({ source: elastic ? "elastic" : "not_configured", results: await searchAgentEvents(elastic, query.data) });
   }));
 
@@ -600,7 +632,60 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
   app.get("/api/disputes/:id", adminAuth, wrap(async (req, res) => res.json(getDispute(db, idParam(req)))));
   app.post("/api/disputes/:id/approve", adminAuth, wrap(async (req, res) =>
     res.json(await approveDispute(deps, idParam(req), typeof req.body?.note === "string" ? req.body.note : undefined))));
-  app.post("/api/disputes/:id/reject", adminAuth, wrap(async (req, res) => res.json(rejectDispute(db, idParam(req)))));
+  app.post("/api/disputes/:id/reject", adminAuth, wrap(async (req, res) => res.json(rejectDispute(db, idParam(req),
+    id => void deps.onDisputeChanged?.(id).catch(err => console.error(`dispute ${id} change hook failed`, err))))));
+
+  // Evidence arriving after a dispute opened. The merchant's Zapier Zap posts carrier data here; the proposal is re-run.
+  // Accepts the admin token OR the shared EVIDENCE_WEBHOOK_SECRET, so a Zap never holds the key that can approve responses.
+  app.post("/api/disputes/:id/evidence", wrap(async (req, res) => {
+    const secret = String(req.header("x-warrant-evidence-secret") ?? "");
+    const adminGiven = req.header("x-admin-token") !== undefined;
+    const safeEq = (a: string, b: string) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
+    const viaSecret = Boolean(cfg.EVIDENCE_WEBHOOK_SECRET) && secret !== "" && safeEq(secret, cfg.EVIDENCE_WEBHOOK_SECRET!);
+    const viaAdmin = adminGiven && Boolean(cfg.ADMIN_TOKEN) && safeEq(String(req.header("x-admin-token")), cfg.ADMIN_TOKEN!);
+    if (!viaSecret && !viaAdmin) return res.status(401).json({ error: "Send x-warrant-evidence-secret (or x-admin-token)." });
+    res.json(await addDeliveryEvidence(deps, idParam(req), req.body, viaSecret ? "zapier" : "admin"));
+  }));
+
+  // Similar past cases (Elastic). Read-only; also used by the Studio agent.
+  app.get("/api/precedents", adminAuth, wrap(async (req, res) => {
+    const q = z.string().min(1).max(500).safeParse(req.query.q);
+    if (!q.success) return res.status(400).json({ error: "Provide ?q=..." });
+    const found = await findSimilarCases(elasticConfig(), q.data, { size: 5 });
+    res.json(found ?? { mode: "not_configured", cases: [] });
+  }));
+
+  // ---- AG Studio: data, the agent's LLM proxy, and the built dashboard ----------------------------------------------
+  app.get("/api/analytics/datasets", adminAuth, wrap(async (_req, res) => res.json(buildAnalytics(db))));
+
+  // The Studio agent talks to an OpenAI Responses-compatible API. It goes through here so the provider key stays on the
+  // server; the browser only holds the admin token, which Studio sends as the bearer "key". Mounted outside /api for a larger body limit.
+  app.post("/studio-api/llm", express.json({ limit: "4mb" }), async (req, res) => {
+    if (!cfg.ADMIN_TOKEN) return res.status(503).json({ error: "Set ADMIN_TOKEN." });
+    const given = Buffer.from(String(req.header("authorization") ?? "").replace(/^Bearer\s+/i, ""));
+    const want = Buffer.from(cfg.ADMIN_TOKEN);
+    if (given.length !== want.length || !timingSafeEqual(given, want)) return res.status(401).json({ error: "Invalid admin token." });
+    if (!cfg.STUDIO_LLM_API_KEY) return res.status(503).json({ error: "Set STUDIO_LLM_API_KEY to enable the Studio agent." });
+    try {
+      const body = { ...(req.body ?? {}), ...(cfg.STUDIO_LLM_MODEL ? { model: cfg.STUDIO_LLM_MODEL } : {}) };
+      const upstream = await fetch(cfg.STUDIO_LLM_URL, {
+        method: "POST", signal: AbortSignal.timeout(120_000), body: JSON.stringify(body),
+        headers: { "content-type": "application/json", authorization: `Bearer ${cfg.STUDIO_LLM_API_KEY}`, accept: req.header("accept") ?? "application/json" },
+      });
+      res.status(upstream.status);
+      const ct = upstream.headers.get("content-type"); if (ct) res.setHeader("content-type", ct);
+      if (!upstream.body) return res.end();
+      Readable.fromWeb(upstream.body as any).pipe(res);   // stream SSE straight through
+    } catch (err) {
+      console.error("studio llm proxy failed", err);
+      if (!res.headersSent) res.status(502).json({ error: "The language model endpoint could not be reached." });
+    }
+  });
+
+  // The built Studio app (npm run build:web). Static files only: every data call it makes needs the admin token.
+  const studioDir = fileURLToPath(new URL("../../web/dist", import.meta.url));
+  if (existsSync(studioDir)) app.use("/studio", express.static(studioDir));
+  else app.get("/studio", (_req, res) => res.status(404).type("text").send("Studio is not built. Run: npm run build:web"));
 
   return app;
 }

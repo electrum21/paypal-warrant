@@ -125,7 +125,7 @@ Known limits:
 - A signed request is replay-protected by nonce and a 5-minute window; there is no per-user rate limit on these routes.
 - The admin token can stop but not resume, but it can still stop any user's agent. That is a deliberate merchant-safety
   capability and also a denial-of-service lever if the token leaks.
-- `openapi.yaml` and the Postman collection are not yet updated for these routes.
+- `openapi.yaml` and the Postman collection include these routes; generated-client validation remains.
 
 
 ## User page prototype (`/me`)

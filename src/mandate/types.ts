@@ -38,6 +38,8 @@ export const Cart = z.object({
   amountCents: z.number().int().positive(),
   currency: z.string().length(3),
   category: z.string().optional(),
+  /** The catalog product (Channel3 id) the agent chose. Signed by the agent, so it commits to WHICH item it bought; the merchant can verify it. */
+  productId: z.string().min(1).max(100).optional(),
   createdAt: z.string(),                         // ISO 8601, set by the agent (evidence only)
 });
 export type Cart = z.infer<typeof Cart>;

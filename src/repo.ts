@@ -3,6 +3,7 @@ import type { Db } from "./db/index.js";
 import type { Finding, Mandate, SignedCart, SignedMandate } from "./mandate/types.js";
 import { checkCumulative } from "./mandate/check.js";
 import type { ControlAction } from "./mandate/control.js";
+import type { ProductCheck } from "./integrations/channel3.js";
 
 /** SQLite's datetime('now') has no zone marker; Date.parse would read it as local time. */
 export function toIso(s: string): string {
@@ -94,6 +95,36 @@ export function recordOrder(db: Db, o: {
          o.captureId ?? null, JSON.stringify(o.findings), o.at ?? new Date().toISOString(),
          o.signedCart?.cart.cartId ?? null, o.signedCart ? JSON.stringify(o.signedCart) : null);
   return Number(r.lastInsertRowid);
+}
+
+// ---- Product checks (Channel3 enrichment) ------------------------------------------------------------------------
+
+export function saveProductCheck(db: Db, orderId: number, check: ProductCheck): void {
+  db.prepare(`INSERT INTO product_checks (order_id, product_id, check_json) VALUES (?, ?, ?)
+              ON CONFLICT(order_id) DO UPDATE SET product_id = excluded.product_id, check_json = excluded.check_json, checked_at = datetime('now')`)
+    .run(orderId, check.productId, JSON.stringify(check));
+}
+
+export function getProductCheck(db: Db, orderId: number): ProductCheck | undefined {
+  const row = db.prepare("SELECT check_json FROM product_checks WHERE order_id = ?").get(orderId) as { check_json: string } | undefined;
+  return row ? JSON.parse(row.check_json) as ProductCheck : undefined;
+}
+
+// ---- Evidence supplied after a dispute opens ------------------------------------------------------------------------
+
+export interface DeliveryEvidence { carrier: string; trackingNumber: string; deliveredAt: string }
+export interface EvidenceRow { id: number; disputeId: number; kind: string; source: string; payload: DeliveryEvidence; createdAt: string }
+
+export function addDisputeEvidence(db: Db, disputeId: number, kind: "delivery", source: "zapier" | "admin", payload: DeliveryEvidence): number {
+  const r = db.prepare("INSERT INTO dispute_evidence (dispute_id, kind, source, payload_json) VALUES (?, ?, ?, ?)")
+    .run(disputeId, kind, source, JSON.stringify(payload));
+  return Number(r.lastInsertRowid);
+}
+
+export function listDisputeEvidence(db: Db, disputeId: number): EvidenceRow[] {
+  return (db.prepare("SELECT * FROM dispute_evidence WHERE dispute_id = ? ORDER BY id").all(disputeId) as any[]).map(r => ({
+    id: r.id, disputeId: r.dispute_id, kind: r.kind, source: r.source, payload: JSON.parse(r.payload_json), createdAt: r.created_at,
+  }));
 }
 
 export function markCaptured(db: Db, paypalOrderId: string, captureId: string) {

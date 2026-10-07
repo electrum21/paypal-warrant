@@ -12,6 +12,9 @@
     { "key": "mandateId", "value": "" },
     { "key": "agentId", "value": "demo-buyer-agent" },
     { "key": "paymentTokenId", "value": "" },
+    { "key": "evidenceSecret", "value": "" },
+    { "key": "disputeId", "value": "" },
+    { "key": "precedentQuery", "value": "unauthorised footwear over mandate limit" },
     { "key": "signedControl", "value": "{}" },
     { "key": "checkoutBody", "value": "{}" }
   ],
@@ -63,6 +66,45 @@
         "header": [{ "key": "Content-Type", "value": "application/json" }, { "key": "x-admin-token", "value": "{{adminToken}}" }],
         "body": { "mode": "raw", "raw": "{\"paypalDisputeId\":\"{{paypalDisputeId}}\"}" },
         "url": "{{baseUrl}}/api/disputes/import"
+      }
+    },
+    {
+      "name": "Get dispute",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-admin-token", "value": "{{adminToken}}" }],
+        "url": "{{baseUrl}}/api/disputes/{{disputeId}}"
+      }
+    },
+    {
+      "name": "Add delivery evidence",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "x-warrant-evidence-secret", "value": "{{evidenceSecret}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"carrier\":\"UPS\",\"trackingNumber\":\"1Z999AA10123456784\",\"deliveredAt\":\"2026-10-05T12:00:00Z\"}"
+        },
+        "url": "{{baseUrl}}/api/disputes/{{disputeId}}/evidence"
+      }
+    },
+    {
+      "name": "Search precedents",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-admin-token", "value": "{{adminToken}}" }],
+        "url": "{{baseUrl}}/api/precedents?q={{precedentQuery}}"
+      }
+    },
+    {
+      "name": "Analytics datasets",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "x-admin-token", "value": "{{adminToken}}" }],
+        "url": "{{baseUrl}}/api/analytics/datasets"
       }
     },
     {

@@ -64,7 +64,7 @@ pre{background:#10233f;color:#e8f1ff;padding:13px;border-radius:8px;overflow:aut
 </details></div>
 
 <div class="card"><h2>Activity</h2><pre id="log">Nothing yet.</pre></div>
-<div class="card"><h2>Agent capabilities</h2><p><small>These services make the agent more useful, observable, and accountable. They run behind the scenes while Warrant remains the payment safety layer.</small></p><div id="capabilities" class="capabilities"><div class="capability"><b>Channel3</b><small>Finds real product options for your request.</small><em>Checking...</em></div><div class="capability"><b>Elastic</b><small>Indexes the agent’s decisions for investigation.</small><em>Checking...</em></div><div class="capability"><b>Zapier</b><small>Notifies the merchant when a dispute response is ready.</small><em>Checking...</em></div><div class="capability"><b>AG Grid</b><small>Gives the merchant a searchable dispute workbench.</small><em>Available in merchant view</em></div></div></div>
+<div class="card"><h2>Agent capabilities</h2><p><small>These services make the agent more useful, observable, and accountable. They run behind the scenes while Warrant remains the payment safety layer.</small></p><div id="capabilities" class="capabilities"><div class="capability"><b>Channel3</b><small>Finds real products, and lets the merchant verify what was actually bought.</small><em>Checking...</em></div><div class="capability"><b>Elastic</b><small>Finds similar past disputes so the merchant sees how they ended.</small><em>Checking...</em></div><div class="capability"><b>Zapier</b><small>Alerts the merchant, and brings missing evidence such as delivery proof back to Warrant.</small><em>Checking...</em></div><div class="capability"><b>AG Grid</b><small>Gives the merchant a searchable dispute workbench.</small><em>Available in merchant view</em></div></div></div>
 <div class="card"><h2>Purchases</h2><p><small>Signed purchases appear here after your agent submits checkout.</small></p><div id="orders" class="orders"><small>No purchases loaded.</small></div><button id="loadOrders" class="plain">Refresh purchases</button></div>
 <div class="footer">Warrant is a demonstration application using PayPal Sandbox. Not an official PayPal page.</div>
 
@@ -131,7 +131,7 @@ async function loadSession() {
     const data = await r.json(), integrations = data.integrations || {};
     const values = [
       ["Channel3", Boolean(integrations.channel3), "Connected", "Using local catalog fallback"],
-      ["Elastic", Boolean(integrations.elastic), "Connected", "Local event history only"],
+      ["Elastic", Boolean(integrations.elastic), "Connected", "No similar-case search"],
       ["Zapier", Boolean(integrations.zapier), "Connected", "No merchant notifications configured"],
     ];
     const cards = [...$("capabilities").children];

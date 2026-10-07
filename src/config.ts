@@ -30,6 +30,14 @@ const Env = z.object({
   ELASTIC_URL: z.preprocess(blank, z.string().url().optional()),
   ELASTIC_API_KEY: z.preprocess(blank, z.string().min(1).optional()),
   ELASTIC_INDEX: z.string().default("warrant-agent-events"),
+  /** Dispute cases for precedent retrieval (semantic + keyword). */
+  ELASTIC_CASE_INDEX: z.string().default("warrant-dispute-cases"),
+  /** Shared secret a Zapier Zap sends (x-warrant-evidence-secret) when it posts evidence back. Without it only the admin token works. */
+  EVIDENCE_WEBHOOK_SECRET: z.preprocess(blank, z.string().min(16).optional()),
+  /** AG Studio's agent calls an OpenAI Responses-compatible endpoint THROUGH Warrant, so the key never reaches the browser. */
+  STUDIO_LLM_URL: z.string().url().default("https://api.openai.com/v1/responses"),
+  STUDIO_LLM_API_KEY: z.preprocess(blank, z.string().min(1).optional()),
+  STUDIO_LLM_MODEL: z.preprocess(blank, z.string().min(1).optional()),
   ZAPIER_WEBHOOK_URL: z.preprocess(blank, z.string().url().optional()),
 });
 export type Config = z.infer<typeof Env>;

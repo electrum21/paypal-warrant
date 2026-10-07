@@ -182,3 +182,23 @@ CREATE TABLE IF NOT EXISTS control_events (
 );
 CREATE INDEX IF NOT EXISTS idx_control_user ON control_events(user_id, id);
 CREATE INDEX IF NOT EXISTS idx_control_subject ON control_events(action, subject_id);
+
+-- What Channel3 said the purchased product was, captured when the order was made (and re-checked at dispute time if missing).
+CREATE TABLE IF NOT EXISTS product_checks (
+  order_id INTEGER PRIMARY KEY REFERENCES orders(id),
+  product_id TEXT NOT NULL,
+  check_json TEXT NOT NULL,
+  checked_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Evidence that arrives AFTER a dispute is opened (for example delivery proof pushed in by a Zapier Zap).
+-- Append-only. Rows are third-party data: validated on the way in, rendered as plain text, never shown to the LLM verbatim.
+CREATE TABLE IF NOT EXISTS dispute_evidence (
+  id INTEGER PRIMARY KEY,
+  dispute_id INTEGER NOT NULL REFERENCES disputes(id),
+  kind TEXT NOT NULL,                       -- delivery
+  source TEXT NOT NULL,                     -- zapier | admin
+  payload_json TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_dispute_evidence_dispute ON dispute_evidence(dispute_id, kind);

@@ -4,3 +4,4 @@ node_modules
 *.db-journal
 .demo-agent.json
 .demo-user.json
+web/dist

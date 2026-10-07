@@ -120,8 +120,6 @@ Verified against the sandbox on 4 October 2026:
 | `accept-claim` | **Works** with `{ note, accept_claim_type: "REFUND" }` (the only type offered). Buyer refunded in full, seller fee reversed |
 | `make-offer` (partial refund) | **Not offered** for this dispute type and stage. Never exercised |
 | `adjudicate` (sandbox settle) | **Not offered** to the merchant account (no link; `ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE`). Cause unconfirmed |
-| Log in with PayPal (identity sign-in) | **Works.** Sign-in through an HTTPS tunnel; the browser key binds to the authenticated PayPal subject (`docs/10-sso-quick-run-guide.md`) |
-| Vault payment method + autonomous charge | **Works.** Setup token approved, payment-method token exchanged and stored, and the buyer agent completed a no-click purchase with it |
 | Webhook receiver + `verify-webhook-signature` | Written; **never run** (needs a public URL) |
 | PayPal Agent Toolkit / MCP server | Not used |
 
@@ -131,11 +129,12 @@ The client is hard-pinned to `https://api-m.sandbox.paypal.com`; there is no pro
 
 | Integration | What it does | Status |
 |---|---|---|
-| Channel3 | `buy-request` searches real products (`POST /v1/search`, `x-api-key`). The demo store lists the cheapest in-budget offer as its own item and keeps the retailer in the description | **Run live.** Selected a real $39.99 product and completed a sandbox checkout |
+| Channel3 | **Search and verification.** `buy-request` searches real products (`POST /v1/search`, `x-api-key`). The demo store lists the cheapest in-budget offer as its own item and keeps the retailer in the description | **Run live (search).** Selected a real $39.99 product and completed a sandbox checkout |
 | Elastic | Merchant agent's investigation events are indexed and searchable at `/api/agent-events/search` | **Run live.** Search by tool name and by content both return results |
 | Zapier | A `proposal_ready` message is sent to a Catch Hook when a proposal is created | **Run live.** Received with dispute ID, action and reason |
-| AG Grid | Dispute queue in the admin page, loaded from a CDN | Used; the version is not pinned |
-| Render, Postman, OpenAPI | `render.yaml`, `postman_collection.json`, `openapi.yaml` | Written; **not tested** (Render deployment never run) |
+| AG Grid (Community) | Dispute queue on the approval screen (`/admin`), a real grid with sorting, filtering and selection. Pinned to major 33 from a CDN | **Fixed.** Earlier versions loaded the library but never created a grid; the queue was hand-built buttons. Verified in a browser against a stubbed grid and API; not yet against the real CDN build |
+| AG Studio | Merchant analytics dashboard at `/studio` (custom Mandate gauge widget, PayPal theme, optional agent) | Production bundle builds successfully; live browser/deployment validation remains |
+| Render, Postman, OpenAPI | `render.yaml`, `postman_collection.json`, `openapi.yaml` | OpenAPI/Postman definitions updated; Render deployment and generated-client validation remain |
 
 ## 9. Data model (SQLite via Node's built-in `node:sqlite`)
 
@@ -157,23 +156,23 @@ Dispute `workflow_state`: `PROPOSED` → `APPROVED` → `SUBMITTED`, or `FAILED`
 
 **Not defended or not done**
 - **The user's key is only as trustworthy as its registration.** Warrant checks the mandate against the key registered for the `userId`, but registration is a merchant-admin call (`/api/users`). Nothing here proves that the key belongs to a real person; in production that binding would come from the user's wallet or an identity issuer. In the demo the user's key (`.demo-user.json`) sits on the same machine as the agent's, so the demo shows the checks, not separate custody of the keys.
-- **The purchase category is declared by the agent** at checkout and is not verified. In production it would need to come from the merchant's catalog or cart.
-- `/api/catalog/search` is unauthenticated and not rate limited, so anyone who can reach the server can spend the Channel3 quota. The admin page loads AG Grid from a CDN without a pinned version.
+- **The purchase category is declared by the agent.** When the signed cart carries a Channel3 `productId` and Channel3 is configured, Warrant now checks Channel3's own category for that product (`src/integrations/channel3.ts`) and treats a confirmed out-of-mandate category as a blocking finding. Carts without a `productId`, or categories Warrant cannot map, are still unverified.
+- `/api/catalog/search` is unauthenticated and not rate limited, so anyone who can reach the server can spend the Channel3 quota. The admin page loads AG Grid from a CDN (major version pinned, not an exact version).
 - Autonomous payment (`mode: "autonomous"`) charges a saved PayPal account with no click. The Vault connection and complete browser-driven checkout were run on the sandbox (`docs/04-autonomous-purchase-spike.md`). The vault token can charge any amount, so the mandate check is the only guard, and it is stored unencrypted in SQLite. The default `approve` mode still uses the click.
 - **No cumulative limit.** Each purchase needs its own signed cart, but one mandate can still back several purchases, each checked only against the per-purchase maximum. The mandate `nonce` is not tracked.
 - **Revocation** is checked but there is no endpoint for a user to revoke; only the helper `revokeMandate` exists.
 - Admin token can be passed in the URL query string, which can end up in logs. Fine for a sandbox demo only.
 - Webhook verification re-serializes the parsed JSON rather than forwarding the raw body; likely fine, but confirm in the sandbox.
 - Amount math assumes 2-decimal currencies.
-- By default checkout **records but does not enforce** findings, so out-of-mandate purchases are sold and later defended. Set `ENFORCE_MANDATE=true` to refuse them with a 422 (verified: an over-limit checkout is refused with no PayPal order created).
+- By default checkout **records but does not enforce** findings, so out-of-mandate purchases are sold and later defended. Set `ENFORCE_MANDATE=true` to refuse them with a 422; this behavior is covered by the checkout suite.
 - On Render's free tier the filesystem is ephemeral; the SQLite file would be lost on redeploy. Use a persistent disk or move to a hosted database before relying on the deployed demo.
 - A signed mandate is evidence, not a guarantee of how PayPal rules.
 
 ## 11. Status snapshot (5 October 2026)
 
-**Built and tested (165 tests in 15 files passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, the Channel3 adapter, and the Express routes with a stubbed PayPal (checkout, key registration, payment-method connect, webhook verification and deduplication, user page).
-**Run against the PayPal sandbox:** checkout and capture, Log in with PayPal identity sign-in, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), `ENFORCE_MANDATE=true` (422), the Vault payment-method connection, the buyer agent's no-click autonomous purchase with the linked payment method, and the discovery that partial-refund offers are not available for this dispute type. Channel3, Elastic and Zapier were each run live.
-**Not yet run:** live webhooks (and signature verification), Render deployment, the prompt-injection test through `buy-request`, `make-offer` against a dispute that allows it.
+**Built and tested (213 tests passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, sponsor adapters, analytics datasets, and Express routes.
+**Run against the PayPal sandbox:** checkout and capture, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), and the discovery that partial-refund offers are not available for this dispute type. Channel3, Elastic and Zapier were each run live.
+**Not yet run:** live webhooks (and signature verification), Render deployment, the prompt-injection test through `buy-request`, `make-offer` against a dispute that allows it, and a generated APIMatic client.
 
 Full results are in `docs/03-testing-and-usage.md`, part K.
 

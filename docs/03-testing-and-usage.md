@@ -2,7 +2,7 @@
 
 *Personal runbook. Work top to bottom; each part builds on the one before. Parts A to C need no PayPal account.*
 
-**Status note (updated 5 Oct 2026).** Parts A to F were run end to end against the PayPal **sandbox**: order creation, capture, dispute import, and two of the three response paths (contest, accept claim). The PayPal Vault payment-method connection was also run successfully: setup-token approval and exchange for a payment-method token both work. Log in with PayPal identity sign-in also works end to end over an HTTPS tunnel (`docs/10-sso-quick-run-guide.md`), and the buyer agent completed a no-click autonomous purchase with the linked payment method. The third dispute path (partial refund) is **not available** from PayPal for this dispute type, so Warrant shows it as a blocked proposal. The three sponsor integrations (Channel3, Elastic, Zapier) were each run live (part G2). The PayPal webhook receiver and local verification/deduplication tests are implemented; live webhook delivery and signature verification still require a public deployment. Part K records exactly what was observed and what was not.
+**Status note (updated 5 Oct 2026).** Parts A to F were run end to end against the PayPal **sandbox**: order creation, capture, dispute import, and two of the three response paths (contest, accept claim). The PayPal Vault payment-method connection was also run successfully: setup-token approval and exchange for a payment-method token both work. The third dispute path (partial refund) is **not available** from PayPal for this dispute type, so Warrant shows it as a blocked proposal. The three sponsor integrations (Channel3, Elastic, Zapier) were each run live (part G2). The PayPal webhook receiver and local verification/deduplication tests are implemented; live webhook delivery and signature verification still require a public deployment. Part K records exactly what was observed and what was not.
 
 ## A. Prerequisites and install
 
@@ -19,7 +19,7 @@ npm install
 ### B1. Run the automated tests
 
 ```
-npm test            # 165 tests expected
+npm test            # 51 tests expected
 npm run typecheck   # should print nothing if clean
 ```
 
@@ -34,9 +34,6 @@ What the tests cover:
 | `src/agent/agent.test.ts` | The three demo scenarios end to end with a fake PayPal |
 | `src/integrations/channel3.test.ts` | Channel3 adapter: URL and header, cheapest in-budget offer, currency and budget filtering, description length, errors |
 | `src/server/app.test.ts` | Database schema creation |
-| `src/server/checkout.test.ts`, `keyRegistration.test.ts`, `paymentConnect.test.ts`, `webhook.test.ts`, `userPage.test.ts` | Express routes with a stubbed PayPal: checkout and autonomous mandate budget, key registration, payment-method connect, webhook verification and deduplication, user page |
-| `src/mandate/authorize.test.ts`, `control.test.ts` | Who signed what; mandate pause, resume and revoke |
-| `src/paypal/vault.test.ts` | Vault and autonomous-charge request shapes |
 
 ### B2. Watch the whole story
 
@@ -320,12 +317,10 @@ Merchant-facing (header `x-admin-token`, or `?token=` on the page):
 
 ## K. Verification checklist (what was observed, 4 to 5 Oct 2026)
 
-- [x] `npm test` and `npm run typecheck` pass on my machine (165 tests in 15 files).
+- [x] `npm test` and `npm run typecheck` pass on my machine (51 tests).
 - [x] `smoke:auth` and `smoke:order` work. Order `COMPLETED`, capture ID printed.
 - [x] PayPal Vault payment-method connection works in the sandbox: the setup token reaches the buyer approval page and the approved token is exchanged and stored server-side.
 - [x] The low-level Vault charge smoke path works in the sandbox: a saved payment-method token created an order without a buyer approval click and captured $15.00.
-- [x] Log in with PayPal identity sign-in works end to end over an HTTPS tunnel; the browser key binds to the authenticated PayPal subject (`docs/10-sso-quick-run-guide.md`).
-- [x] Linking the Vault payment method to the user (`npm run demo -- link-payment`) and the buyer agent completing a no-click autonomous purchase with it (5 Oct 2026).
 - [x] `/api/checkout` creates an order and the approval flow completes. Orders for `within`, `over` and `category` were all created and captured.
 - [x] **How a sandbox dispute can be created.** Buyer UI: Unauthorized activity, then "I suspect my account is being used by someone else", with the payment selected. Result: reason `UNAUTHORISED`, stage `CHARGEBACK`, channel `INTERNAL`, status `WAITING_FOR_SELLER_RESPONSE`, response due about 11 days out. The merchant account cannot file a case.
 - [x] **Buyer and merchant dispute IDs differ** for unauthorized cases (buyer `PP-R-ZVT-10190270`, merchant `PP-R-GTN-10190271`). IDs start `PP-R-`, not `PP-D-`.

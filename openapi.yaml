@@ -293,12 +293,56 @@ paths:
         - { name: id, in: path, required: true, schema: { type: integer } }
       responses:
         "200": { description: Proposal rejected }
+  /api/disputes/{id}/evidence:
+    post:
+      summary: Add delivery proof to an open dispute and re-run the proposal
+      description: >
+        Called by the merchant's Zapier Zap after an `evidence_requested` event. Authenticated with
+        `x-warrant-evidence-secret` (EVIDENCE_WEBHOOK_SECRET) or the admin token. Every field is validated; the proposal is
+        recomputed, so an item-not-received dispute can change from "needs your review" to "contest". Cannot approve anything.
+      security:
+        - EvidenceSecret: []
+        - AdminToken: []
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [carrier, trackingNumber, deliveredAt]
+              properties:
+                carrier: { type: string, maxLength: 40, description: "Letters, digits, spaces, dots, ampersands, hyphens." }
+                trackingNumber: { type: string, minLength: 4, maxLength: 60, description: "Letters, digits, hyphens." }
+                deliveredAt: { type: string, format: date-time, description: "Not in the future." }
+      responses:
+        "200": { description: The refreshed dispute record }
+        "400": { description: A field failed validation }
+        "401": { description: Missing or wrong secret }
+        "409": { description: The dispute was already submitted or dismissed }
+  /api/precedents:
+    get:
+      summary: Similar past disputes (Elastic hybrid search)
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, maxLength: 500 } }
+      responses:
+        "200": { description: "{ mode: hybrid|keyword|not_configured, cases: [...] }" }
+  /api/analytics/datasets:
+    get:
+      summary: Flat tables for the AG Studio dashboard (disputes, orders, agents, agentSteps)
+      responses:
+        "200": { description: Read-only analytics datasets }
 components:
   securitySchemes:
     AdminToken:
       type: apiKey
       in: header
       name: x-admin-token
+    EvidenceSecret:
+      type: apiKey
+      in: header
+      name: x-warrant-evidence-secret
   schemas:
     CheckoutRequest:
       type: object

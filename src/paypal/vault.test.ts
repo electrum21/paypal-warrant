@@ -15,7 +15,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-describe("vaulted payments (request shapes; the connection and a no-click charge were verified on the sandbox 5 Oct 2026)", () => {
+describe("vaulted payments (request shapes; unverified against the sandbox)", () => {
   it("asks PayPal to save the account when creating the first order", async () => {
     replies = () => ({ id: "O1", status: "PAYER_ACTION_REQUIRED", links: [] });
     await createVaultingOrder(cfg, { amountCents: 1000, currency: "USD", mandateId: "m1", returnUrl: "r", cancelUrl: "c" });
