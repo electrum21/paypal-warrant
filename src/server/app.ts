@@ -7,7 +7,7 @@ import { z } from "zod";
 import type { Config } from "../config.js";
 import type { Db } from "../db/index.js";
 import { verifyWebhook } from "../paypal/webhooks.js";
-import { captureOrder, chargeVaultedToken, createOrder, createPayPalSetupToken, exchangePayPalLoginCode, exchangePayPalSetupToken, getPayPalProfile, PAYPAL_LOGIN_BASE, PayPalHttpError } from "../paypal/client.js";
+import { captureOrder, chargeVaultedToken, createOrder, createPayPalSetupToken, exchangePayPalLoginCode, exchangePayPalSetupToken, getAccessToken, getPayPalProfile, PAYPAL_LOGIN_BASE, PayPalHttpError } from "../paypal/client.js";
 import { paypalDisputes, type DisputesApi } from "../paypal/disputes.js";
 import { anthropicClient, geminiClient, type LlmClient } from "../ai/draft.js";
 import { addDeliveryEvidence, approveDispute, getDispute, listDisputes, processDispute, rejectDispute, ServiceError, type Deps } from "../disputes/service.js";
@@ -120,11 +120,13 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
     next();
   };
 
+  app.get("/", (_req, res) => res.redirect("/studio/"));
+
   app.get("/health", (_req, res) => {
     res.json({ ok: true, webhookVerification: Boolean(cfg.PAYPAL_WEBHOOK_ID), llm: Boolean(deps.llm), admin: Boolean(cfg.ADMIN_TOKEN),
       paypalLogin: loginConfigured,
       integrations: { channel3: Boolean(cfg.CHANNEL3_URL && cfg.CHANNEL3_API_KEY), elastic: Boolean(cfg.ELASTIC_URL && cfg.ELASTIC_API_KEY),
-        zapier: Boolean(cfg.ZAPIER_WEBHOOK_URL), agGrid: true, agStudio: existsSync(fileURLToPath(new URL("../../web/dist", import.meta.url))), studioAgent: Boolean(cfg.STUDIO_LLM_API_KEY), postman: true, apimatic: true } });
+        zapier: Boolean(cfg.ZAPIER_WEBHOOK_URL), agGrid: true, agStudio: existsSync(fileURLToPath(new URL("../../web/dist", import.meta.url))), studioAgent: Boolean(cfg.STUDIO_LLM_API_KEY), paypalMcp: cfg.PAYPAL_MCP_ENABLED, postman: true, apimatic: true } });
   });
 
   app.get("/auth/paypal/start", (_req, res) => {
@@ -667,7 +669,19 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
     if (given.length !== want.length || !timingSafeEqual(given, want)) return res.status(401).json({ error: "Invalid admin token." });
     if (!cfg.STUDIO_LLM_API_KEY) return res.status(503).json({ error: "Set STUDIO_LLM_API_KEY to enable the Studio agent." });
     try {
-      const body = { ...(req.body ?? {}), ...(cfg.STUDIO_LLM_MODEL ? { model: cfg.STUDIO_LLM_MODEL } : {}) };
+      const body = { ...(req.body ?? {}), ...(cfg.STUDIO_LLM_MODEL ? { model: cfg.STUDIO_LLM_MODEL } : {}) } as Record<string, unknown>;
+      if (cfg.PAYPAL_MCP_ENABLED) {
+        const accessToken = await getAccessToken(cfg);
+        const existingTools = Array.isArray(body.tools) ? body.tools : [];
+        body.tools = [...existingTools, {
+          type: "mcp",
+          server_label: "paypal-sandbox",
+          server_url: cfg.PAYPAL_MCP_URL,
+          require_approval: "always",
+          headers: { Authorization: `Bearer ${accessToken}` },
+          allowed_tools: ["list_disputes", "get_dispute", "list_product", "show_product_details"],
+        }];
+      }
       const upstream = await fetch(cfg.STUDIO_LLM_URL, {
         method: "POST", signal: AbortSignal.timeout(120_000), body: JSON.stringify(body),
         headers: { "content-type": "application/json", authorization: `Bearer ${cfg.STUDIO_LLM_API_KEY}`, accept: req.header("accept") ?? "application/json" },
