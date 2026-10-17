@@ -70,7 +70,11 @@ approval screen.
 - **Studio dashboard (`/studio`).** `npm run build:web` builds a Vite + React app around
   `ag-studio-react`. Data sources: `disputes`, `agents`, `orders`, `agentSteps`, served by
   `GET /api/analytics/datasets`. It includes a PayPal theme, a custom **Mandate gauge** widget, and an
-  optional "Warrant analyst" agent. See `web/README.md`.
+  optional "Warrant analyst" agent. The page now ships pre-built with five charts (dispute rate by
+  agent, disputes by recommended action, disputes by primary finding, orders by product verdict,
+  over-limit spend by agent) instead of opening to a blank canvas — built live via the chat agent and
+  baked in through `web/src/dashboardState.json` (see `api.getState()`/`initialState` and the "Export
+  layout" button in `web/src/App.jsx`). See `web/README.md`.
 - The Studio agent has read-only Warrant tools. There is deliberately no tool that approves,
   dismisses, submits or refunds.
 

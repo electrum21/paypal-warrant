@@ -1,8 +1,11 @@
 # Warrant: how to test and use it
 
-*Personal runbook. Work top to bottom; each part builds on the one before. Parts A to C need no PayPal account.*
+*Step-by-step setup and verification guide. Work top to bottom; each part builds on the one before. Parts A to C need no PayPal account.*
 
-**Status note (updated 5 Oct 2026).** Parts A to F were run end to end against the PayPal **sandbox**: order creation, capture, dispute import, and two of the three response paths (contest, accept claim). The PayPal Vault payment-method connection was also run successfully: setup-token approval and exchange for a payment-method token both work. The third dispute path (partial refund) is **not available** from PayPal for this dispute type, so Warrant shows it as a blocked proposal. The three sponsor integrations (Channel3, Elastic, Zapier) were each run live (part G2). The PayPal webhook receiver and local verification/deduplication tests are implemented; live webhook delivery and signature verification still require a public deployment. Part K records exactly what was observed and what was not.
+**Status note (updated 18 Oct 2026).** Parts A to G2 were all run end to end against the PayPal
+**sandbox**, including a live public deployment (Render) with the webhook verifying in production and
+the full Zapier evidence loop. Part K is the authoritative, continuously-updated record of exactly what
+was observed and when — read it before assuming something is or isn't verified.
 
 ## A. Prerequisites and install
 

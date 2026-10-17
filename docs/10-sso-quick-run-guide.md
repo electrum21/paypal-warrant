@@ -79,7 +79,7 @@ vault tokens, or webhook URLs.
 Open PowerShell window 1:
 
 ```powershell
-cd "C:\Users\tjmja\Documents\Projects\paypal-ai-hackathon\warrant"
+cd path\to\warrant
 npm install
 npm run typecheck
 npm run dev

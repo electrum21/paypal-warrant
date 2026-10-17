@@ -1,18 +1,20 @@
-# Sponsor strategy
+# Sponsor strategy (internal working notes)
 
-Written 6 Oct 2026 from the hackathon's public sponsor pages. Prizes and criteria may change; recheck the
-Devpost "Prizes" and each sponsor's details page before submitting.
+Written 6 Oct 2026 from the hackathon's public sponsor pages; kept up to date as work lands. This is a
+planning document for us, not outward-facing copy — see `docs/08-sponsor-integrations.md` for the
+reader-facing version of what each integration actually does. Prizes and criteria may change; recheck
+the Devpost "Prizes" page and each sponsor's details page before submitting.
 
-## Where the prize money actually is
+## What each sponsor track is actually judged on, and where Warrant stands
 
-| Sponsor | What the page offers | What it rewards | Where Warrant stood | Where it stands now |
-|---|---|---|---|---|
-| **AG Grid** | $5k / $2k / $1k x3 | **AG Studio**: custom widgets, theming, layout, the Studio Agent Framework. "Not just AG Grid on its own" | Library loaded but **never instantiated**; the docs said it was in use | Real grid on `/admin`; a Studio dashboard with theme, custom widget and agent scaffold |
-| **Channel3** | $1,500 (one winner) | "Search, product enrichment, or recommendations" | Search only; results relabeled with the category the *buyer asked for* | Search, enrichment (verifies what was bought against Channel3's own data), and recommendations (in-mandate alternatives after a refusal) |
-| Render | $1k / $750 / $500 credits | A deployed, working project | `render.yaml` written, never deployed | **Deployed and live** at `warrant-9baj.onrender.com`; `/health` confirms `webhookVerification: true` with the PayPal webhook registered against it |
-| Bryntum | $1k x3 | Gantt / Scheduler / Calendar | Not used | Not used (idea below) |
-| Elastic, Zapier | No cash prize listed; tools and judges | A multi-step agent using retrieval (Elastic); automation/MCP (Zapier) | Log search; one-way webhook | Retrieval the agent uses; **the full two-way Zapier loop confirmed live** (proposal → Catch Hook, and evidence_requested → Zap posts delivery evidence back → proposal flips from escalate_to_human to contest) against the Render deployment |
-| PayPal MCP | No cash prize listed; tools and judges | A multi-step agent using MCP | Not used | The Studio analyst reads PayPal sandbox disputes/catalog through PayPal's MCP server, on **either** OpenAI (native connector) or **Gemini** (own bridge, no OpenAI account needed) - **confirmed live against the real sandbox MCP server** |
+| Sponsor | What the page says it rewards | Where Warrant stood | Where it stands now |
+|---|---|---|---|
+| **AG Grid** | **AG Studio**: custom widgets, theming, layout, the Studio Agent Framework. "Not just AG Grid on its own" | Library loaded but **never instantiated**; the docs said it was in use | Real grid on `/admin`; a Studio dashboard with theme, custom widget and agent scaffold |
+| **Channel3** | "Search, product enrichment, or recommendations" | Search only; results relabeled with the category the *buyer asked for* | Search, enrichment (verifies what was bought against Channel3's own data), and recommendations (in-mandate alternatives after a refusal) |
+| Render | A deployed, working project | `render.yaml` written, never deployed | **Deployed and live** at `warrant-9baj.onrender.com`; `/health` confirms `webhookVerification: true` with the PayPal webhook registered against it |
+| Bryntum | Gantt / Scheduler / Calendar | Not used | Not used (idea below) |
+| Elastic, Zapier | A multi-step agent using retrieval (Elastic); automation/MCP (Zapier) | Log search; one-way webhook | Retrieval the agent uses; **the full two-way Zapier loop confirmed live** (proposal → Catch Hook, and evidence_requested → Zap posts delivery evidence back → proposal flips from escalate_to_human to contest) against the Render deployment |
+| PayPal MCP | A multi-step agent using MCP | Not used | The Studio analyst reads PayPal sandbox disputes/catalog through PayPal's MCP server, on **either** OpenAI (native connector) or **Gemini** (own bridge, no OpenAI account needed) - **confirmed live against the real sandbox MCP server** |
 
 ## The principle behind every change
 

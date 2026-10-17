@@ -18,6 +18,9 @@ const Env = z.object({
   AUTH_SESSION_HOURS: z.coerce.number().positive().default(24),
   // Treat an empty value in .env (KEY=) as unset.
   ADMIN_TOKEN: z.string().min(1).optional().or(z.literal("").transform(() => undefined)),
+  // A second, disposable token with the same access as ADMIN_TOKEN, for handing out to hackathon judges
+  // without exposing the real one. Unset it (or rotate it) once judging ends.
+  JUDGE_TOKEN: z.string().min(1).optional().or(z.literal("").transform(() => undefined)),
   ANTHROPIC_API_KEY: z.string().min(1).optional().or(z.literal("").transform(() => undefined)),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-5-5"),
   GEMINI_API_KEY: z.string().min(1).optional().or(z.literal("").transform(() => undefined)),

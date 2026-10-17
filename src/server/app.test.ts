@@ -15,6 +15,30 @@ describe("database schema", () => {
     expect(db.prepare("SELECT COUNT(*) c FROM webhook_events").get()).toEqual({ c: 1 });
   });
 
+  describe("JUDGE_TOKEN", () => {
+    it("grants the same access to /admin as ADMIN_TOKEN, independently", async () => {
+      const cfg = {
+        PAYPAL_CLIENT_ID: "id", PAYPAL_CLIENT_SECRET: "secret", DATABASE_PATH: ":memory:",
+        PORT: 0, APP_URL: "http://localhost", ADMIN_TOKEN: "real-admin-token", JUDGE_TOKEN: "disposable-judge-token",
+        ANTHROPIC_MODEL: "m", GEMINI_MODEL: "g", ENFORCE_MANDATE: false,
+        MERCHANT_ID: "warrant-demo-merchant", ELASTIC_INDEX: "warrant-agent-events",
+      } as any;
+      const app = createApp(cfg, openDb());
+      const server = app.listen(0);
+      try {
+        const port = (server.address() as { port: number }).port;
+        for (const token of ["real-admin-token", "disposable-judge-token"]) {
+          const response = await fetch(`http://127.0.0.1:${port}/admin?token=${token}`);
+          expect(response.status).toBe(200);
+        }
+        const rejected = await fetch(`http://127.0.0.1:${port}/admin?token=wrong-token`);
+        expect(rejected.status).toBe(401);
+      } finally {
+        await new Promise<void>(resolve => server.close(() => resolve()));
+      }
+    });
+  });
+
   describe("user authorization page", () => {
     it("serves the user page at /user and keeps /me as an alias", async () => {
       const cfg = {

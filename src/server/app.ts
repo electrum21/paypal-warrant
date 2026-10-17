@@ -114,18 +114,20 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
   };
 
   // Approving a dispute response moves money, so every merchant route needs the admin token.
+  // ADMIN_TOKEN and JUDGE_TOKEN (a disposable second token for hackathon judges) grant identical access.
+  const safeEq = (a: string, b: string) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
+  const isValidAdminToken = (given: string | undefined) => given !== undefined && given !== "" &&
+    ((Boolean(cfg.ADMIN_TOKEN) && safeEq(given, cfg.ADMIN_TOKEN!)) || (Boolean(cfg.JUDGE_TOKEN) && safeEq(given, cfg.JUDGE_TOKEN!)));
   const adminAuth = (req: Request, res: Response, next: NextFunction) => {
-    if (!cfg.ADMIN_TOKEN) return res.status(503).json({ error: "Set ADMIN_TOKEN in .env to use the approval screen." });
-    const given = Buffer.from(String(req.header("x-admin-token") ?? req.query.token ?? ""));
-    const want = Buffer.from(cfg.ADMIN_TOKEN);
-    if (given.length !== want.length || !timingSafeEqual(given, want)) return res.status(401).json({ error: "Invalid admin token." });
+    if (!cfg.ADMIN_TOKEN && !cfg.JUDGE_TOKEN) return res.status(503).json({ error: "Set ADMIN_TOKEN in .env to use the approval screen." });
+    if (!isValidAdminToken(String(req.header("x-admin-token") ?? req.query.token ?? ""))) return res.status(401).json({ error: "Invalid admin token." });
     next();
   };
 
   app.get("/", (_req, res) => res.redirect("/studio/"));
 
   app.get("/health", (_req, res) => {
-    res.json({ ok: true, webhookVerification: Boolean(cfg.PAYPAL_WEBHOOK_ID), llm: Boolean(deps.llm), admin: Boolean(cfg.ADMIN_TOKEN),
+    res.json({ ok: true, webhookVerification: Boolean(cfg.PAYPAL_WEBHOOK_ID), llm: Boolean(deps.llm), admin: Boolean(cfg.ADMIN_TOKEN || cfg.JUDGE_TOKEN),
       paypalLogin: loginConfigured,
       integrations: { channel3: Boolean(cfg.CHANNEL3_URL && cfg.CHANNEL3_API_KEY), elastic: Boolean(cfg.ELASTIC_URL && cfg.ELASTIC_API_KEY),
         zapier: Boolean(cfg.ZAPIER_WEBHOOK_URL), agGrid: true, agStudio: existsSync(fileURLToPath(new URL("../../web/dist", import.meta.url))),
@@ -409,12 +411,7 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
   // ---- User controls: revoke a mandate, pause/resume the agent, revoke the saved payment source ----------------------
   // Authorized by the USER's signature (a SignedControl in the body). The merchant admin token may also STOP things
   // (revoke, pause, revoke payment) but can never resume: only the user can turn their agent back on.
-  const isAdmin = (req: Request) => {
-    if (!cfg.ADMIN_TOKEN || req.header("x-admin-token") === undefined) return false;
-    const given = Buffer.from(String(req.header("x-admin-token")));
-    const want = Buffer.from(cfg.ADMIN_TOKEN);
-    return given.length === want.length && timingSafeEqual(given, want);
-  };
+  const isAdmin = (req: Request) => isValidAdminToken(req.header("x-admin-token"));
   interface Authorized { userId: string; via: "user_signature" | "admin"; issuedAt: string; nonce: string; reason?: string }
   const authorizeControl = (req: Request, spec: {
     action: ControlAction; subjectId: string; allowAdmin: boolean;
@@ -648,10 +645,8 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
   // Accepts the admin token OR the shared EVIDENCE_WEBHOOK_SECRET, so a Zap never holds the key that can approve responses.
   app.post("/api/disputes/:id/evidence", wrap(async (req, res) => {
     const secret = String(req.header("x-warrant-evidence-secret") ?? "");
-    const adminGiven = req.header("x-admin-token") !== undefined;
-    const safeEq = (a: string, b: string) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
     const viaSecret = Boolean(cfg.EVIDENCE_WEBHOOK_SECRET) && secret !== "" && safeEq(secret, cfg.EVIDENCE_WEBHOOK_SECRET!);
-    const viaAdmin = adminGiven && Boolean(cfg.ADMIN_TOKEN) && safeEq(String(req.header("x-admin-token")), cfg.ADMIN_TOKEN!);
+    const viaAdmin = isValidAdminToken(req.header("x-admin-token"));
     if (!viaSecret && !viaAdmin) return res.status(401).json({ error: "Send x-warrant-evidence-secret (or x-admin-token)." });
     res.json(await addDeliveryEvidence(deps, idParam(req), req.body, viaSecret ? "zapier" : "admin"));
   }));
@@ -670,10 +665,8 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
   // The Studio agent talks to an OpenAI Responses-compatible API. It goes through here so the provider key stays on the
   // server; the browser only holds the admin token, which Studio sends as the bearer "key". Mounted outside /api for a larger body limit.
   app.post("/studio-api/llm", express.json({ limit: "4mb" }), async (req, res) => {
-    if (!cfg.ADMIN_TOKEN) return res.status(503).json({ error: "Set ADMIN_TOKEN." });
-    const given = Buffer.from(String(req.header("authorization") ?? "").replace(/^Bearer\s+/i, ""));
-    const want = Buffer.from(cfg.ADMIN_TOKEN);
-    if (given.length !== want.length || !timingSafeEqual(given, want)) return res.status(401).json({ error: "Invalid admin token." });
+    if (!cfg.ADMIN_TOKEN && !cfg.JUDGE_TOKEN) return res.status(503).json({ error: "Set ADMIN_TOKEN." });
+    if (!isValidAdminToken(String(req.header("authorization") ?? "").replace(/^Bearer\s+/i, ""))) return res.status(401).json({ error: "Invalid admin token." });
 
     if (cfg.STUDIO_LLM_PROVIDER === "gemini") {
       if (!cfg.GEMINI_API_KEY) return res.status(503).json({ error: "Set GEMINI_API_KEY to enable the Studio agent." });

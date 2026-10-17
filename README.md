@@ -1,87 +1,169 @@
 # Warrant
 
-Dispute defense for merchants selling to AI shoppers. A buyer's agent presents a **signed mandate**
-when it buys; if the purchase is later disputed, the merchant's agent assembles the evidence,
-checks the purchase against the mandate with plain code, and proposes a response through the
-**PayPal Disputes API** (sandbox only). The merchant approves before anything is submitted.
+**Dispute defense for merchants selling to AI shopping agents.**
 
-> Status: the dispute pipeline is built. A webhook (or manual import) turns a dispute into a stored
-> **proposal**: signature check, mandate check, deterministic decision, evidence pack, and an AI-written
-> explanation. A merchant approves it on `/admin`; only then are calls made to the PayPal Disputes API.
-> Business logic and Express routes are covered by 213 automated tests. Core order, Vault, dispute
-> import, evidence, and accept-claim flows have also been exercised against the PayPal sandbox.
-> Live webhook delivery, public deployment, and the optional sponsor services still require final
-> environment-specific validation.
+AI agents are starting to buy things on people's behalf. When a buyer later tells PayPal "I never
+authorized this," the merchant is left holding a payment record and nothing else — no proof of what
+the user actually told their agent to do. Warrant fixes that: a buyer's agent presents a **signed
+mandate** (the user's spending limits, cryptographically signed) when it buys. If the purchase is
+disputed, Warrant checks it against that mandate with plain code, assembles the evidence, and
+proposes a response through the **PayPal Disputes API** (sandbox). A human merchant approves before
+anything is ever submitted.
 
-## Honest scope
-- The buyer agent and merchant agent are both built by us; PayPal's real dispute process is not simulated beyond the sandbox.
-- The mandate format is **AP2-inspired, not AP2-compliant**.
-- Decisions are proposals. The LLM explains and drafts notes; it never decides whether money moves. Its output must be JSON, within length limits, and may only use numbers present in the verified facts, otherwise a plain template is used.
-- Mandate descriptions are third-party text. They are shown to the LLM as quoted data and rendered in the admin page as plain text only.
-- This is not legal advice, and a signed mandate is evidence, not a guarantee of any dispute outcome.
+The one design rule, enforced in code, not just policy: **the LLM writes words; code decides; the
+merchant approves; only then does anything reach PayPal.**
 
-## Run
+## Live demo
+
+Deployed at **https://warrant-9baj.onrender.com** — PayPal sandbox only, no real money moves.
+
+| Page | What you'll see |
+|---|---|
+| [`/admin?token=<JUDGE_TOKEN>`](https://warrant-9baj.onrender.com/admin?token=JUDGE_TOKEN_HERE) | The merchant approval screen: a real dispute queue (AG Grid), the deterministic finding, the AI-drafted note, one click to approve or dismiss |
+| [`/studio?token=<JUDGE_TOKEN>`](https://warrant-9baj.onrender.com/studio?token=JUDGE_TOKEN_HERE) | An AG Studio analytics dashboard, pre-built with five charts, plus a Gemini-backed chat agent that can query the live data and build new ones on request |
+| `/health` | Feature flags — confirms what's actually turned on in this deployment |
+
+Judge token (read/write access to the above, separate from the maintainer's own token — see
+`docs/03-testing-and-usage.md` if you'd rather run your own copy instead): **`<ask the maintainer / see submission form>`**
+
+Demo video: *(link added before submission — see `docs/11-sponsor-strategy.md` for the planned shot list)*
+
+## What's real here
+
+- **233+ automated tests**, plus live runs against the real PayPal sandbox: order creation and capture,
+  dispute creation and import, the contest and accept-claim response paths, a live webhook that turns
+  a real sandbox dispute into a correct proposal with **zero manual steps**, and a complete
+  browser-driven autonomous (no-click) checkout through PayPal Vault.
+- **Three optional sponsor integrations run live, not just wired up:** Channel3 (product search *and*
+  verification of what was actually bought), Elastic (semantic precedent search over past disputes),
+  and Zapier (a two-way loop: Warrant asks for delivery evidence, a Zap fetches it and posts it back,
+  the proposal re-runs and flips).
+- **An AI agent with PayPal's own MCP server**, bridged to work on Gemini with no OpenAI account
+  needed (`src/integrations/geminiAgentBridge.ts`) — confirmed live against the real sandbox MCP
+  server and against the real browser chat UI, including building its own dashboard charts.
+- **Deployed, not just "deployable.**" Render, with a persistent disk, a registered PayPal webhook, and
+  a real sandbox dispute that has already round-tripped through it end to end.
+
+Full verification log, with dates and exact observed PayPal responses: `docs/03-testing-and-usage.md`
+part K.
+
+## Why the AI is trustworthy with money
+
+An LLM (Gemini or Anthropic) writes two things: a short explanation for the merchant and a factual
+note for PayPal's reviewer. It never decides the outcome, never calls PayPal, and never sees
+buyer-written dispute text without it being marked as untrusted quoted data. Its output must be JSON,
+under a length limit, and **every number in it must already exist in the verified facts** — an
+invented amount is rejected outright. Any failure (no key, bad JSON, a rule violation) falls back to a
+plain template, and the merchant always sees which one they're looking at. The identifiers that matter
+to PayPal's reviewer (mandate ID, hash, signature result, the buyer's own words) are written by code,
+never by the model, and sit at the top of every note.
+
+## Three examples it handles today
+
+| What happened | Warrant proposes | Why |
+|---|---|---|
+| Agent bought $115 shoes; mandate limit was $120. Buyer disputes. | **Contest.** | The buyer's own signed instructions allowed it. |
+| Agent bought $135 shoes; limit was $120. Buyer disputes. | **Offer to refund the $15 over.** | PayPal's sandbox doesn't offer a partial refund at this stage, so Warrant tells the merchant that instead of sending something PayPal would reject. |
+| Agent bought a $115 gadget; the mandate only covered footwear. Buyer disputes. | **Accept the claim.** | The purchase went beyond what the buyer allowed — contesting it would be weak. |
+
+## Run it yourself
+
 ```
 npm install
 cp .env.example .env     # add PayPal SANDBOX credentials
-npm test                 # no credentials needed
+npm test                 # no credentials needed, 233+ tests
 npm run db:init
 npm run smoke:auth       # confirms your keys work
 npm run smoke:order      # creates a sandbox order and prints an approval link
-npm run dev              # server on :8787 (webhooks, checkout, /admin)
+npm run dev              # server on :8787 (webhooks, checkout, /admin, /studio)
 ```
 
 Set `ADMIN_TOKEN` in `.env`, then open `http://localhost:8787/admin?token=<ADMIN_TOKEN>`.
-Set `ANTHROPIC_API_KEY` to get LLM explanations (optional; a template is used without it).
-Without a public webhook URL you can still test: import a sandbox dispute by its ID on the admin page.
+Set `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` for real LLM explanations (optional; a template is used
+without one). Without a public webhook URL you can still test everything: import a sandbox dispute by
+its ID on the admin page.
 
-## Demo and docs
 ```
-npm run demo:offline     # whole story, fake PayPal, no credentials
-npm run demo -- register # live: register the demo user's key and the buyer agent's key
-npm run demo -- buy over # live: within | over | category
-npm run demo -- link-payment <VAULT_TOKEN_ID> # live: link a saved PayPal account (see docs/04)
-npm run demo -- buy-auto over # live: pay with no click; out-of-mandate buys are refused
-npm run demo -- buy-request "Buy trail running shoes under $120"
-npm run demo -- import <PAYPAL_DISPUTE_ID>
+npm run demo:offline                                  # whole story, fake PayPal, no credentials
+npm run demo -- register                               # live: register the demo user's and agent's keys
+npm run demo -- buy-auto over                           # live: pay with no click; out-of-mandate buys are refused
+npm run demo -- buy-request-auto "Buy trail running shoes under $120"   # natural language -> real sandbox order
+npm run demo -- import <PAYPAL_DISPUTE_ID>              # turn a sandbox dispute into a proposal
 ```
-Docs in `docs/`: project overview, plain-English summary, testing and usage guide.
-Sponsor adapters and setup notes are in `docs/08-sponsor-integrations.md`.
 
-Optional sponsor integrations:
-- Channel3 product discovery, plus verification of what was actually bought (category and retailer prices)
-- Elastic: agent-trace search and precedent retrieval over past disputes (semantic + keyword)
-- AG Grid dispute queue on the approval screen, and an AG Studio analytics dashboard at `/studio`
-- Zapier: proposal notifications and an evidence loop that brings delivery proof back
-- PayPal's official sandbox MCP server can optionally provide read-only dispute and catalog context to the Studio analyst (`PAYPAL_MCP_ENABLED=true`), on either OpenAI or Gemini (`STUDIO_LLM_PROVIDER=gemini`, no OpenAI account needed)
-- Render deployment with persistent SQLite storage
-- Postman collection and `openapi.yaml` describing the HTTP API
+Point any of these at the live Render deployment instead of your own machine by setting `WARRANT_URL`
+and `ADMIN_TOKEN` as environment variables first. Full step-by-step guide, every variable explained,
+and a troubleshooting table: `docs/03-testing-and-usage.md`.
 
-## Flow
-1. Buyer agent `POST /api/checkout` with the **user-signed mandate** and an **agent-signed cart** (the exact purchase). Warrant verifies both signatures against the registered user and agent keys, checks the cart is bound to the mandate and matches the purchase, accepts each cart once, records findings, and creates the PayPal order.
-2. Buyer approves; `/paypal/return` captures and stores the capture ID.
-3. A dispute is raised on that capture. `CUSTOMER.DISPUTE.CREATED` (verified) or `POST /api/disputes/import` runs the pipeline.
-4. Merchant reviews the proposal on `/admin`, edits the note, approves or dismisses.
-5. On approve: evidence, offer or accept-claim is sent with a stable `PayPal-Request-Id`. Failures are recorded and retryable.
+## How it works
+
+1. Buyer agent `POST /api/checkout` with a **user-signed mandate** and an **agent-signed cart** (the
+   exact purchase). Warrant verifies both signatures, checks the cart matches the mandate, accepts
+   each cart once, and creates the PayPal order.
+2. The buyer approves (or, in autonomous mode, a previously-connected PayPal Vault payment method is
+   charged with no click).
+3. A dispute is raised on that payment. A verified `CUSTOMER.DISPUTE.CREATED` webhook or a manual
+   import runs the pipeline: look up the order, verify the mandate, decide a response, build an
+   evidence pack, have an LLM explain it.
+4. The merchant reviews the proposal on `/admin`, can edit the note, and approves or dismisses.
+5. On approve: evidence, an offer, or an accept-claim is sent to PayPal with a stable idempotency key.
+   Failures are recorded and retryable.
+
+## Sponsor integrations
+
+Every one of these is optional — the offline demo and full test suite need none of them.
+
+- **Channel3** — real product search for the buyer agent, *and* verification: Warrant checks what was
+  actually bought against Channel3's own product data, and a confirmed category mismatch becomes a
+  blocking finding. A refused checkout gets in-mandate alternatives from the same search.
+- **Elastic** — the merchant agent's investigation trace is indexed and searchable; disputes are
+  indexed as cases and a hybrid (semantic + keyword) search surfaces similar past outcomes on the
+  approval screen, advisory only.
+- **Zapier** — a proposal notification, and a full evidence-request loop: Warrant asks for delivery
+  proof it doesn't have, a Zap fetches it from the carrier and posts it back, and the proposal re-runs.
+- **AG Grid / AG Studio** — a real sortable, filterable dispute queue on `/admin`, and a full analytics
+  dashboard at `/studio` (custom Mandate-gauge widget, PayPal theme, a pre-built chart layout, and an
+  optional chat agent with read-only dashboard and PayPal-MCP tools).
+- **PayPal's official MCP server** — gives the Studio agent read-only sandbox dispute/catalog context,
+  on OpenAI's native connector or, with no OpenAI account at all, a from-scratch Gemini bridge
+  (`src/integrations/geminiAgentBridge.ts`) speaking MCP directly.
+- **Render** — the live deployment above, with a persistent disk for SQLite.
+- **Postman / OpenAPI** — `postman_collection.json` and `openapi.yaml` describe the full HTTP API.
+
+Full detail on what each one changes about a dispute outcome, with exact verification notes:
+`docs/08-sponsor-integrations.md`.
 
 ## Layout
-- `src/mandate/`  sign, verify and check mandates and carts (ed25519, canonical JSON); `authorize.ts` checks who signed what
-- `src/disputes/` deterministic decision, evidence pack, and the service that proposes / approves / rejects
-- `src/ai/`       LLM drafting with validation and template fallback
-- `src/paypal/`   sandbox-pinned REST client, Disputes API client, webhook verification
-- `src/server/`   Express app: webhook, checkout, admin API, admin page
-- `src/repo.ts`   small helpers for keys, mandates and orders
-- `src/db/`       SQLite schema
 
-## Week-1 checklist
-Superseded by the full verification log in `docs/03-testing-and-usage.md` section K; kept here only as a quick scorecard.
-- [x] Sandbox: create a dispute from the buyer account. Reason `UNAUTHORISED`, stage `CHARGEBACK`. `CUSTOMER.DISPUTE.CREATED` was confirmed firing to the deployed webhook and producing a correct proposal automatically
-- [x] Confirm dispute reason codes (the code assumes `UNAUTHORISED`) — confirmed against a real sandbox dispute
-- [x] Submit evidence via the API and see which formats the sandbox accepts — a JSON `evidences: [{ evidence_type: "OTHER", notes }]` body is accepted
-- [x] Try offer, partial refund and settle — `make-offer` is not offered for this dispute type/stage, and `adjudicate` returns `ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE` for this merchant account. Neither works around it
-- [x] Check what PayPal's MCP server exposes — its sandbox read tools are allow-listed for the Studio analyst; the PayPal Agent Toolkit itself was not separately investigated
-- [x] Verify the Disputes API request bodies (evidence type, accept-claim reason, JSON vs multipart) — both confirmed against the sandbox
-- [x] Run `smoke:order` then `/api/checkout` against the sandbox and confirm the capture ID matches the dispute's seller transaction — confirmed
-- [x] Deploy the webhook receiver (Render) and register the webhook ID — live at `warrant-9baj.onrender.com`, `/health` confirms `webhookVerification: true`
+- `src/mandate/` — sign, verify and check mandates and carts (ed25519, canonical JSON)
+- `src/disputes/` — deterministic decision, evidence pack, and the propose/approve/reject service
+- `src/ai/` — LLM drafting with validation and template fallback
+- `src/paypal/` — sandbox-pinned REST client, Disputes API client, webhook verification
+- `src/server/` — Express app: webhook, checkout, admin API, admin page
+- `src/db/` — SQLite schema
+- `src/integrations/` — Channel3, Elastic, Zapier, PayPal MCP, and the Gemini agent bridge
+- `src/agent/`, `src/scripts/demo*.ts` — the scripted buyer agent and live/offline demo CLIs
+- `web/` — the AG Studio dashboard (Vite + React)
+
+## Honest scope
+
+- The buyer agent and merchant agent are both built by us; PayPal's real dispute process is not
+  simulated beyond the sandbox.
+- The mandate format is **AP2-inspired, not AP2-compliant**.
+- Decisions are proposals. The LLM explains and drafts notes; it never decides whether money moves.
+- Mandate descriptions are third-party text, always shown to the LLM as quoted data and rendered as
+  plain text only.
+- This is not legal advice, and a signed mandate is evidence, not a guarantee of any dispute outcome.
+- Full list of known gaps and what's deliberately not defended yet (no cumulative-spend tracking,
+  category is agent-declared unless Channel3 confirms it, demo key custody, and more): section 10 of
+  `docs/01-project-overview.md`.
+
+## Docs
+
+- `docs/01-project-overview.md` — full technical reference: architecture, decision rules, trust model
+- `docs/02-plain-english-summary.md` — the idea with no jargon
+- `docs/03-testing-and-usage.md` — step-by-step setup, every env var, troubleshooting, and the full
+  verification log
+- `docs/08-sponsor-integrations.md` — what each sponsor integration does and how it was verified
 
 MIT licensed.

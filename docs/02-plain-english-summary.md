@@ -40,12 +40,13 @@ We designed it this way on purpose: when money is involved, we want the judgment
 - A pretend shopper (a scripted assistant) can run through all three examples above, and can also turn a plain request like "buy trail running shoes under $120" into a signed permission slip and a real test purchase.
 - A buyer can connect a PayPal Sandbox payment method through PayPal Vault. Once connected, the saved payment method can be charged by the autonomous-payment path without another buyer approval click.
 - **It has been run against PayPal's test environment (the "sandbox").** A test purchase was made, the buyer raised an "unauthorized" dispute, Warrant matched it to the signed slip, and the shop owner's approval sent the response to PayPal. Two of the three responses worked: fighting the dispute (PayPal accepted the evidence and put the case under review) and accepting it (the buyer was refunded). The third, offering a partial refund, isn't available from PayPal for this kind of dispute, which is why Warrant shows it as a suggestion only.
-- Three optional add-ons were each run live: real product search (Channel3), a searchable log of the shop-side agent's steps (Elastic), and a notification when a suggestion is ready (Zapier).
+- Three optional add-ons were each run live: real product search *and verification of what was actually bought* (Channel3), a searchable log of the shop-side agent's steps plus similar-past-case lookup (Elastic), and a two-way evidence loop that fetches delivery proof and posts it back (Zapier).
+- A live, running copy is deployed on the internet (Render), with PayPal's automatic dispute alert wired up for real: a test dispute reached it and Warrant handled it with no one touching a keyboard.
+- There's also a dashboard (built with AG Studio) that charts dispute rates per shopping assistant, which responses get used most, and more — pre-built, and a chat assistant on the same page can answer questions about the data or build new charts on request.
 - You can also watch the whole story run on your computer with no PayPal account, using one command (`npm run demo:offline`).
 
 ## What is not done or not proven yet
 
-- **Automatic alerts from PayPal haven't been tried.** In the tests, a person imported each dispute by hand; the "webhook" that would do it automatically needs a public web address and hasn't been set up.
 - **The permission slip is signed by the shopper's assistant, not by the buyer personally.** So it proves the assistant issued it, not that the human did. Having the buyer's own key sign it is the most important next step.
 - **The default demo uses a person clicking "Pay Now."** Warrant also supports connecting a PayPal Vault payment method for autonomous payment; the connection and full browser-driven no-click checkout have been verified in the sandbox.
 - **The product category is whatever the assistant says it is.** Warrant doesn't check that a "shoe" is really a shoe.

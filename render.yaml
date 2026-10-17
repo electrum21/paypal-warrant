@@ -16,6 +16,8 @@ services:
         sync: false
       - key: ADMIN_TOKEN
         sync: false
+      - key: JUDGE_TOKEN
+        sync: false
       - key: PAYPAL_CLIENT_ID
         sync: false
       - key: PAYPAL_CLIENT_SECRET

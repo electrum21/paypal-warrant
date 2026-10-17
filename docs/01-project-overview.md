@@ -1,6 +1,6 @@
 # Warrant: project overview
 
-*Technical reference for the PayPal AI Hackathon 2026 build. Written 4 October 2026; updated 5 October 2026 after sandbox testing.*
+*Technical reference for the PayPal AI Hackathon 2026 build. Written 4 October 2026; last updated 18 October 2026.*
 
 ## 1. What Warrant is
 
@@ -168,29 +168,26 @@ Dispute `workflow_state`: `PROPOSED` → `APPROVED` → `SUBMITTED`, or `FAILED`
 - On Render's free tier the filesystem is ephemeral; the SQLite file would be lost on redeploy. Use a persistent disk or move to a hosted database before relying on the deployed demo.
 - A signed mandate is evidence, not a guarantee of how PayPal rules.
 
-## 11. Status snapshot (5 October 2026)
+## 11. Status snapshot (updated 18 October 2026)
 
-**Built and tested (215 tests passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, sponsor adapters, analytics datasets, and Express routes.
-**Run against the PayPal sandbox:** checkout and capture, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), and the discovery that partial-refund offers are not available for this dispute type. Channel3, Elastic and Zapier were each run live. The prompt-injection defense was run live against the configured LLM (`npm run smoke:prompt-injection`). The Studio agent's PayPal MCP bridge was run live on Gemini against the real sandbox MCP server (`npm run smoke:gemini-studio-agent`), with no OpenAI account.
-**Deployed:** Render deployment is live (`warrant-9baj.onrender.com`) with the PayPal webhook registered and verifying. A real sandbox dispute (`PP-R-VHE-10193234`) has reached it end to end: the webhook fired, `processDispute` ran with no manual import, and proposed `contest` correctly.
+**Built and tested (233+ tests passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, sponsor adapters, analytics datasets, and Express routes.
+**Run against the PayPal sandbox:** checkout and capture, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), the discovery that partial-refund offers are not available for this dispute type, and a complete browser-driven autonomous (no-click) checkout through PayPal Vault. Channel3, Elastic and Zapier were each run live, Zapier through a full two-way evidence loop. The prompt-injection defense was run live against the configured LLM (`npm run smoke:prompt-injection`). The Studio agent's PayPal MCP bridge was run live on Gemini against the real sandbox MCP server (`npm run smoke:gemini-studio-agent`) and, separately, through the real browser chat UI end to end, with no OpenAI account.
+**Deployed:** Render deployment is live (`warrant-9baj.onrender.com`) with the PayPal webhook registered and verifying, and the Studio dashboard shipping pre-built with five charts. A real sandbox dispute (`PP-R-VHE-10193234`) has reached it end to end: the webhook fired, `processDispute` ran with no manual import, and proposed `contest` correctly.
 **Not yet run:** which webhook events fire on dispute *update*/*resolution* (only `CREATED` observed so far), and `make-offer` against a dispute that allows it.
 
 Full results are in `docs/03-testing-and-usage.md`, part K.
 
-## 12. Roadmap to the deadline
+## 12. What's left before submission
 
-Submissions close **12 November 2026**. The Devpost page shows 12:00pm PST; another listing says 2:00pm PT. Plan for the earlier time and confirm in the official rules. Judging runs 13 November to 15 December; winners around 21 December.
+Submissions close **12 November 2026** (Devpost shows 12:00pm PST; confirm in the official rules).
+What remains is content, not code: record the demo video (shot list in `docs/11-sponsor-strategy.md`)
+and write the Devpost text description. Everything in the "Do next" list that doc used to track —
+Render deployment, the Zapier loop, the Studio agent on Gemini, the pre-built dashboard — is done.
 
-| Week | Goal |
-|---|---|
-| Now to 11 Oct | **Done 4 to 5 Oct:** install, tests, `demo:offline`, sandbox keys, smoke scripts, how to raise a sandbox dispute |
-| 12 to 18 Oct | **Mostly done 4 to 5 Oct** (checkout, capture, dispute, import, approve; request bodies fixed). User-signed mandate **done** (see section 10). Remaining: cumulative spend limit, tamper demo |
-| 19 to 25 Oct | Deploy (Render) with persistent storage, register the webhook, confirm `verified=1`. Check what the PayPal Agent Toolkit / MCP server offers |
-| 26 Oct to 1 Nov | Deepen the AI role (ideas below), revocation endpoint, cumulative limits, delivery-proof input |
-| 2 to 8 Nov | Polish admin page, record demo video, write Devpost submission |
-| 9 to 12 Nov | Buffer. Submit at least a day early |
-
-**Ideas to deepen AI (pick one or two, not all):** an agent that decides what supporting evidence to request from the merchant for non-"unauthorized" reasons; an LLM-assisted triage that flags suspicious mandates for human review (still advisory); expand the PayPal MCP read context after validating the sandbox integration; an AI-generated plain-language summary of the user's original instruction for the evidence note.
+**Ideas to deepen the AI role further, if there's time (not required):** an agent that decides what
+supporting evidence to request from the merchant for non-"unauthorized" reasons; an LLM-assisted triage
+that flags suspicious mandates for human review (still advisory); an AI-generated plain-language
+summary of the user's original instruction for the evidence note.
 
 ## 13. Suggested 3-minute demo
 
