@@ -52,9 +52,10 @@ way to move money or approve a response. So:
 | Existing suites (agent, draft, disputes, service, mandate, vault, channel3) | Re-run after the refactor, all pass |
 | `/admin` page | Rendered in headless Chromium against a **stubbed** `agGrid` and fixture API; the real AG Grid CDN build was not loadable offline |
 | Custom Mandate gauge | Bundled with React and rendered in Chromium against fixture data |
-| Express routes in `app.ts`, `app.test.ts`, `checkout.test.ts`, webhook tests | **213 tests pass**; live PayPal/webhook and deployed-environment validation remains |
-| `web/` AG Studio app and agent | `npm run build:web` succeeds against the installed AG packages; browser runtime, adapter, and deployed validation remain |
-| Elastic and Channel3 against their live services | Channel3, Elastic, and Zapier have each had one live run; broader failure/mapping coverage remains |
+| Express routes in `app.ts`, `app.test.ts`, `checkout.test.ts`, webhook tests | **215 tests pass**; live PayPal, webhook, and deployed-environment validation all confirmed (see docs/03 K) |
+| `web/` AG Studio app and agent | `npm run build:web` succeeds against the installed AG packages; browser runtime and the live OpenAI-backed agent remain (deferred — needs an OpenAI key) |
+| Channel3, Zapier against their live services | Each run multiple times against the live Render deployment with varied inputs; see docs/03 K |
+| Elastic against its live service | Run multiple times against the live deployment. Finding: `/api/agent-events/search` only reliably matches exact IDs/tool names, not natural language; `/api/precedents`'s relevance ranking is unverified with only one case indexed |
 | Render deployment, live webhook | **Done.** Live at `warrant-9baj.onrender.com`; a real sandbox dispute (`PP-R-VHE-10193234`) reached it and produced a correct `contest` proposal with no manual import (see K in docs/03) |
 | APIMatic generation | Not done |
 
