@@ -74,13 +74,14 @@ Optional sponsor integrations:
 - `src/db/`       SQLite schema
 
 ## Week-1 checklist
-- [ ] Sandbox: create a dispute from the buyer account and note which webhooks fire
-- [ ] Confirm dispute reason codes (the code assumes `UNAUTHORISED`)
-- [ ] Submit evidence via the API and see which formats the sandbox accepts
-- [ ] Try offer, partial refund and settle
-- [ ] Check which of these the PayPal Agent Toolkit exposes
-- [ ] Verify the Disputes API request bodies (evidence type, accept-claim reason, JSON vs multipart)
-- [ ] Run `smoke:order` then `/api/checkout` against the sandbox and confirm the capture ID matches the dispute's seller transaction
+Superseded by the full verification log in `docs/03-testing-and-usage.md` section K; kept here only as a quick scorecard.
+- [x] Sandbox: create a dispute from the buyer account. Reason `UNAUTHORISED`, stage `CHARGEBACK`. **Still open:** which webhook fires on creation, since there's no public URL to receive it yet (needs the Render deploy below)
+- [x] Confirm dispute reason codes (the code assumes `UNAUTHORISED`) — confirmed against a real sandbox dispute
+- [x] Submit evidence via the API and see which formats the sandbox accepts — a JSON `evidences: [{ evidence_type: "OTHER", notes }]` body is accepted
+- [x] Try offer, partial refund and settle — `make-offer` is not offered for this dispute type/stage, and `adjudicate` returns `ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE` for this merchant account. Neither works around it
+- [x] Check what PayPal's MCP server exposes — its sandbox read tools are allow-listed for the Studio analyst; the PayPal Agent Toolkit itself was not separately investigated
+- [x] Verify the Disputes API request bodies (evidence type, accept-claim reason, JSON vs multipart) — both confirmed against the sandbox
+- [x] Run `smoke:order` then `/api/checkout` against the sandbox and confirm the capture ID matches the dispute's seller transaction — confirmed
 - [ ] Deploy the webhook receiver (Render) and register the webhook ID
 
 MIT licensed.
