@@ -68,5 +68,12 @@ export function MandateGauge({ widgetApi }) {
   );
 }
 
-// Note: the widget definition below uses only documented fields (id, label, comp). Size defaults are Studio's own.
-export const mandateGaugeWidget = { id: "mandateGauge", label: "Mandate gauge", comp: MandateGauge };
+// A custom widget still needs a form callback in AG Studio 3, even when it has no mapped fields.
+export const mandateGaugeWidget = {
+  id: "mandateGauge",
+  label: "Mandate gauge",
+  comp: MandateGauge,
+  form: ({ createDefaults }) => createDefaults({}),
+  defaultSize: { width: 420, height: 240 },
+  minSize: { width: 280, height: 180 },
+};

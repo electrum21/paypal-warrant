@@ -121,7 +121,7 @@ Verified against the sandbox on 4 October 2026:
 | `make-offer` (partial refund) | **Not offered** for this dispute type and stage. Never exercised |
 | `adjudicate` (sandbox settle) | **Not offered** to the merchant account (no link; `ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE`). Cause unconfirmed |
 | Webhook receiver + `verify-webhook-signature` | Written; **never run** (needs a public URL) |
-| PayPal Agent Toolkit / MCP server | Not used |
+| PayPal Agent Toolkit / MCP server | Optional Studio integration: PayPal sandbox MCP read tools are allow-listed and approval-gated |
 
 The client is hard-pinned to `https://api-m.sandbox.paypal.com`; there is no production switch. Every write sends a `PayPal-Request-Id`; dispute submissions use a stable key (`warrant-<disputeId>-<action>`) so retries cannot double-submit.
 
@@ -189,7 +189,7 @@ Submissions close **12 November 2026**. The Devpost page shows 12:00pm PST; anot
 | 2 to 8 Nov | Polish admin page, record demo video, write Devpost submission |
 | 9 to 12 Nov | Buffer. Submit at least a day early |
 
-**Ideas to deepen AI (pick one or two, not all):** an agent that decides what supporting evidence to request from the merchant for non-"unauthorized" reasons; an LLM-assisted triage that flags suspicious mandates for human review (still advisory); use of the PayPal MCP server so the merchant agent can look up transactions through tools; an AI-generated plain-language summary of the user's original instruction for the evidence note.
+**Ideas to deepen AI (pick one or two, not all):** an agent that decides what supporting evidence to request from the merchant for non-"unauthorized" reasons; an LLM-assisted triage that flags suspicious mandates for human review (still advisory); expand the PayPal MCP read context after validating the sandbox integration; an AI-generated plain-language summary of the user's original instruction for the evidence note.
 
 ## 13. Suggested 3-minute demo
 

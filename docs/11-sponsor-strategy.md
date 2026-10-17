@@ -38,6 +38,7 @@ way to move money or approve a response. So:
    and the 10-second poll never redrew a dispute unless its workflow state changed, so evidence added by a
    Zap would not have appeared.
 5. **AG Studio app** (`web/`): theme, data sources, custom Mandate gauge widget, agent scaffold, model proxy.
+6. **PayPal MCP server.** The optional Studio analyst can read PayPal sandbox disputes and catalog records through PayPal's official MCP server. The server injects only an allow-listed set of read tools and requires approval for every MCP call; it cannot approve, submit, refund, or otherwise move money.
 
 ## Verification status (be straight about this in the submission)
 
@@ -61,7 +62,8 @@ way to move money or approve a response. So:
 5. Deploy to Render (also unblocks the PayPal webhook, which has only run locally).
 6. Make the Zap: Catch Hook -> carrier lookup -> Webhooks POST to `callbackUrl` with the secret header.
 7. Run APIMatic on `openapi.yaml` and use the generated client in the buyer agent.
-8. Record the demo around one story: an agent buys a "running shoe" that Channel3 knows is a phone ->
+8. Enable `PAYPAL_MCP_ENABLED=true` in a sandbox environment and verify the Studio analyst can retrieve a dispute without changing it.
+9. Record the demo around one story: an agent buys a "running shoe" that Channel3 knows is a phone ->
    Warrant refuses it live (autonomous) or proposes accepting the claim -> the Studio dashboard shows that
    agent's dispute rate climbing.
 

@@ -333,7 +333,9 @@ Merchant-facing (header `x-admin-token`, or `?token=` on the page):
 - [x] The webhook receiver preserves the raw body, verifies events through PayPal's verification endpoint, stores verified/unverified events, and deduplicates event IDs. Local tests cover malformed, unverified, and duplicate events.
 - [ ] Which webhook event types PayPal sends at creation, update and resolution. **Not tested against the live Sandbox.**
 - [x] The complete browser-driven `/api/checkout` autonomous purchase path against live PayPal.
-- [ ] What the PayPal Agent Toolkit and MCP server expose that we could use. **Not investigated.**
+- [x] PayPal's official MCP server was investigated. Studio can opt in to the sandbox read tools
+  `list_disputes`, `get_dispute`, `list_product`, and `show_product_details`; live MCP invocation
+  still needs an account-backed test.
 
 ### Sponsor integrations (observed 5 Oct 2026)
 
