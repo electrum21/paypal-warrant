@@ -36,6 +36,12 @@ services:
         sync: false
       - key: STUDIO_LLM_API_KEY
         sync: false
+      - key: STUDIO_LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PAYPAL_MCP_ENABLED
+        value: "true"
     disk:
       name: warrant-data
       mountPath: /var/data
