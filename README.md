@@ -19,12 +19,13 @@ Deployed at **https://warrant-9baj.onrender.com** — PayPal sandbox only, no re
 
 | Page | What you'll see |
 |---|---|
-| [`/admin?token=<JUDGE_TOKEN>`](https://warrant-9baj.onrender.com/admin?token=JUDGE_TOKEN_HERE) | The merchant approval screen: a real dispute queue (AG Grid), the deterministic finding, the AI-drafted note, one click to approve or dismiss |
-| [`/studio?token=<JUDGE_TOKEN>`](https://warrant-9baj.onrender.com/studio?token=JUDGE_TOKEN_HERE) | An AG Studio analytics dashboard, pre-built with five charts, plus a Gemini-backed chat agent that can query the live data and build new ones on request |
+| [`/admin?token=7oi5q9Mi-3wkUg-iCUrDFm_3`](https://warrant-9baj.onrender.com/admin?token=7oi5q9Mi-3wkUg-iCUrDFm_3) | The merchant approval screen: a real dispute queue (AG Grid), the deterministic finding, the AI-drafted note, one click to approve or dismiss |
+| [`/studio?token=7oi5q9Mi-3wkUg-iCUrDFm_3`](https://warrant-9baj.onrender.com/studio?token=7oi5q9Mi-3wkUg-iCUrDFm_3) | An AG Studio analytics dashboard, pre-built with five charts, plus a Gemini-backed chat agent that can query the live data and build new ones on request |
 | `/health` | Feature flags — confirms what's actually turned on in this deployment |
 
-Judge token (read/write access to the above, separate from the maintainer's own token — see
-`docs/03-testing-and-usage.md` if you'd rather run your own copy instead): **`<ask the maintainer / see submission form>`**
+That token (`JUDGE_TOKEN`) is a disposable credential separate from the maintainer's own `ADMIN_TOKEN`,
+set specifically for judging and rotated/removed afterward. Prefer to run your own copy instead? See
+`docs/03-testing-and-usage.md`.
 
 Demo video: *(link added before submission — see `docs/11-sponsor-strategy.md` for the planned shot list)*
 
