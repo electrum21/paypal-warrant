@@ -13,6 +13,7 @@
     "smoke:auth": "tsx src/scripts/smoke-auth.ts",
     "smoke:order": "tsx src/scripts/smoke-order.ts",
     "smoke:vault": "tsx src/scripts/smoke-vault.ts",
+    "smoke:prompt-injection": "tsx src/scripts/smoke-prompt-injection.ts",
     "demo": "tsx src/scripts/demo.ts",
     "demo:offline": "tsx src/scripts/demo-offline.ts",
     "build:web": "vite build --config web/vite.config.mjs",
