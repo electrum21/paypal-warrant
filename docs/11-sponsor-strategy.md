@@ -73,7 +73,13 @@ way to move money or approve a response. So:
 2. `npm run build:web`, open `/studio/?token=...`, and validate browser runtime behavior (see its README).
 3. Copy AG's `openaiAdapter` into `web/src/openaiAdapter.js`; set `STUDIO_LLM_API_KEY`. (Or skip this
    entirely and set `STUDIO_LLM_PROVIDER=gemini` + `GEMINI_API_KEY` — no OpenAI account needed; see below.)
-4. Build the demo layout in Studio and export its state so the page opens pre-built.
+4. ~~Build the demo layout in Studio and export its state so the page opens pre-built~~ **Done.** The user built
+   five charts live via the Gemini Studio agent chat (dispute rate by agent, disputes by recommended action,
+   disputes by primary finding, orders by product verdict, over-limit spend by agent), then exported with a
+   new "Export layout" button (`api.getState()` -> `POST /studio-api/dashboard-state`, admin-token protected,
+   writes `web/src/dashboardState.json`). `/studio` now opens with `initialState` set to that file instead of
+   a blank canvas. The custom Mandate gauge widget wasn't added to this layout — still a manual drag-on if
+   wanted later.
 5. ~~Deploy to Render; confirm the live webhook~~ **Done** — live at `warrant-9baj.onrender.com`; a real sandbox dispute reached `/webhooks/paypal` and produced a correct proposal with no manual import.
 6. ~~Make the Zap: Catch Hook -> carrier lookup -> Webhooks POST to `callbackUrl`~~ **Done, full loop.** A fresh Catch Hook received both `proposal_updated` and `evidence_requested` events from the live deployment, and the Zap's own Webhooks-by-Zapier step posted delivery evidence back, flipping the proposal from `escalate_to_human` to `contest`.
 7. ~~Enable `PAYPAL_MCP_ENABLED=true` in a sandbox environment and verify the Studio analyst can retrieve a dispute without changing it~~ **Done, on Gemini.** No OpenAI key was available, so this runs on `STUDIO_LLM_PROVIDER=gemini` instead: `src/integrations/geminiAgentBridge.ts` and `mcpClient.ts` speak PayPal's MCP protocol directly and bridge it into Gemini's function-calling. `npm run smoke:gemini-studio-agent` confirmed it live against the real sandbox MCP server. Browser-side chat UI not separately exercised (no connected browser available); OpenAI's native-connector path remains deferred.
