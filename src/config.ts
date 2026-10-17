@@ -38,6 +38,10 @@ const Env = z.object({
   STUDIO_LLM_URL: z.string().url().default("https://api.openai.com/v1/responses"),
   STUDIO_LLM_API_KEY: z.preprocess(blank, z.string().min(1).optional()),
   STUDIO_LLM_MODEL: z.preprocess(blank, z.string().min(1).optional()),
+  /** "openai" proxies straight to STUDIO_LLM_URL/API_KEY. "gemini" runs a bridge in-process against
+   * GEMINI_API_KEY/GEMINI_MODEL instead - no OpenAI account needed - and, when PAYPAL_MCP_ENABLED, resolves
+   * PayPal MCP tool calls itself, since Gemini has no native MCP connector the way OpenAI's Responses API does. */
+  STUDIO_LLM_PROVIDER: z.enum(["openai", "gemini"]).default("openai"),
   /** Opt-in PayPal MCP context for the Studio analyst. Only sandbox read tools are allow-listed. */
   PAYPAL_MCP_ENABLED: z.string().optional().transform(v => v === "true"),
   PAYPAL_MCP_URL: z.string().url().default("https://mcp.sandbox.paypal.com/sse"),

@@ -74,6 +74,34 @@ approval screen.
 - The Studio agent has read-only Warrant tools. There is deliberately no tool that approves,
   dismisses, submits or refunds.
 
+### PayPal MCP, and running the agent without an OpenAI key
+
+`POST /studio-api/llm` is the one place a provider key is used, and `STUDIO_LLM_PROVIDER` picks how:
+
+- **`openai` (default).** Proxies straight to an OpenAI Responses-compatible endpoint
+  (`STUDIO_LLM_URL`/`STUDIO_LLM_API_KEY`). When `PAYPAL_MCP_ENABLED=true`, the proxy also hands the
+  request a native `type: "mcp"` tool pointing at PayPal's sandbox MCP server - OpenAI's Responses API
+  connects to it, lists tools, and runs calls itself; Warrant only allow-lists which tools
+  (`list_disputes`, `get_dispute`, `list_product`, `show_product_details`) and forwards a PayPal
+  access token.
+- **`gemini`.** Runs a bridge in-process (`src/integrations/geminiAgentBridge.ts`) against
+  `GEMINI_API_KEY`/`GEMINI_MODEL` instead - no OpenAI account needed. Gemini's API has no native MCP
+  connector, so when `PAYPAL_MCP_ENABLED=true` the bridge speaks MCP itself
+  (`src/integrations/mcpClient.ts`, the official `@modelcontextprotocol/sdk`, same allow-list): it lists
+  the sandbox server's tools, hands them to Gemini as function declarations alongside AG Studio's own
+  tools, and - only for an MCP tool call - runs it and feeds the result back, looping invisibly to the
+  Studio harness. A call to one of AG's own tools (dashboard widgets, `get_dispute_case`, ...) is left
+  for the harness to execute, exactly as the OpenAI adapter leaves it.
+- The browser side mirrors this: `web/src/agent.js` prefers `openaiAdapter.js` (AG's own example, copied
+  in by hand) when it has been installed, and otherwise falls back to the built-in `web/src/geminiAdapter.js`.
+- **Verified live (2026-10-17):** `npm run smoke:gemini-studio-agent` exercised the real Gemini API three
+  ways against the real PayPal sandbox MCP server - a plain answer, a call to a declared non-MCP tool
+  left unresolved for the harness, and a `list_disputes` MCP call resolved by the bridge, round-tripped
+  back into a natural-language answer naming real sandbox dispute ids. Not separately verified: the
+  browser-side chat UI itself (`geminiAdapter.js` talking through AG Studio's real `createAiHarness`),
+  since no connected browser was available in that session - the backend bridge it calls into was,
+  though, and the adapter is a thin, mechanical translation on top of it.
+
 ## Render
 
 `render.yaml` defines a Node web service with a persistent disk for SQLite and now runs

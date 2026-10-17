@@ -43,7 +43,7 @@ export default function App() {
         <summary>{ai ? "Ask the Warrant analyst" : "Build a dashboard"}</summary>
         {ai
           ? <ul>{PROMPTS.map(p => <li key={p}>{p}</li>)}</ul>
-          : <p>Drag fields from the data panel onto the canvas. Add the <b>Mandate gauge</b> from the Warrant group in the widget menu. The agent is off until an LLM adapter is installed (see web/src/openaiAdapter.js).</p>}
+          : <p>Drag fields from the data panel onto the canvas. Add the <b>Mandate gauge</b> from the Warrant group in the widget menu. The agent needs a key on the server: set <code>GEMINI_API_KEY</code> and <code>STUDIO_LLM_PROVIDER=gemini</code> to use Warrant's built-in adapter, or install AG's own OpenAI adapter (see web/src/openaiAdapter.js) and set <code>STUDIO_LLM_API_KEY</code>.</p>}
       </details>
       <main className="canvas">
         {error && <p className="problem" role="alert">Could not load data: {error}. Open this page as /studio/?token=YOUR_ADMIN_TOKEN.</p>}

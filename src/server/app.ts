@@ -21,6 +21,8 @@ import { adminPageHtml } from "./adminPage.js";
 import { productFindings, searchChannel3, suggestAlternatives, verifyProduct } from "../integrations/channel3.js";
 import { caseSummary, findSimilarCases, indexAgentEvent, indexDisputeCase, outcomeOf, searchAgentEvents, type DisputeCase } from "../integrations/elastic.js";
 import { buildZapierEvent, notifyZapier } from "../integrations/zapier.js";
+import { PAYPAL_MCP_ALLOWED_TOOLS } from "../integrations/mcpClient.js";
+import { runGeminiStudioTurn, type StudioLlmRequest } from "../integrations/geminiAgentBridge.js";
 import { buildAnalytics } from "../analytics/datasets.js";
 
 const CheckoutBody = z.object({
@@ -126,7 +128,9 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
     res.json({ ok: true, webhookVerification: Boolean(cfg.PAYPAL_WEBHOOK_ID), llm: Boolean(deps.llm), admin: Boolean(cfg.ADMIN_TOKEN),
       paypalLogin: loginConfigured,
       integrations: { channel3: Boolean(cfg.CHANNEL3_URL && cfg.CHANNEL3_API_KEY), elastic: Boolean(cfg.ELASTIC_URL && cfg.ELASTIC_API_KEY),
-        zapier: Boolean(cfg.ZAPIER_WEBHOOK_URL), agGrid: true, agStudio: existsSync(fileURLToPath(new URL("../../web/dist", import.meta.url))), studioAgent: Boolean(cfg.STUDIO_LLM_API_KEY), paypalMcp: cfg.PAYPAL_MCP_ENABLED, postman: true } });
+        zapier: Boolean(cfg.ZAPIER_WEBHOOK_URL), agGrid: true, agStudio: existsSync(fileURLToPath(new URL("../../web/dist", import.meta.url))),
+        studioAgent: cfg.STUDIO_LLM_PROVIDER === "gemini" ? Boolean(cfg.GEMINI_API_KEY) : Boolean(cfg.STUDIO_LLM_API_KEY),
+        studioLlmProvider: cfg.STUDIO_LLM_PROVIDER, paypalMcp: cfg.PAYPAL_MCP_ENABLED, postman: true } });
   });
 
   app.get("/auth/paypal/start", (_req, res) => {
@@ -670,6 +674,18 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
     const given = Buffer.from(String(req.header("authorization") ?? "").replace(/^Bearer\s+/i, ""));
     const want = Buffer.from(cfg.ADMIN_TOKEN);
     if (given.length !== want.length || !timingSafeEqual(given, want)) return res.status(401).json({ error: "Invalid admin token." });
+
+    if (cfg.STUDIO_LLM_PROVIDER === "gemini") {
+      if (!cfg.GEMINI_API_KEY) return res.status(503).json({ error: "Set GEMINI_API_KEY to enable the Studio agent." });
+      try {
+        res.json(await runGeminiStudioTurn(cfg, (req.body ?? {}) as StudioLlmRequest));
+      } catch (err) {
+        console.error("gemini studio bridge failed", err);
+        res.status(502).json({ error: "The language model endpoint could not be reached." });
+      }
+      return;
+    }
+
     if (!cfg.STUDIO_LLM_API_KEY) return res.status(503).json({ error: "Set STUDIO_LLM_API_KEY to enable the Studio agent." });
     try {
       const body = { ...(req.body ?? {}), ...(cfg.STUDIO_LLM_MODEL ? { model: cfg.STUDIO_LLM_MODEL } : {}) } as Record<string, unknown>;
@@ -682,7 +698,7 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
           server_url: cfg.PAYPAL_MCP_URL,
           require_approval: "always",
           headers: { Authorization: `Bearer ${accessToken}` },
-          allowed_tools: ["list_disputes", "get_dispute", "list_product", "show_product_details"],
+          allowed_tools: [...PAYPAL_MCP_ALLOWED_TOOLS],
         }];
       }
       const upstream = await fetch(cfg.STUDIO_LLM_URL, {

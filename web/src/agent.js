@@ -1,5 +1,6 @@
 import { createAiHarness, directLlmRunner } from "ag-studio";
 import { openaiAdapter } from "./openaiAdapter.js";
+import { geminiAdapter } from "./geminiAdapter.js";
 import { token, warrant } from "./warrant.js";
 
 /**
@@ -30,11 +31,15 @@ function summarise(d) {
   };
 }
 
-/** Returns the `ai` prop for <AgStudio>, or undefined when no adapter has been installed (the dashboard still works). */
+/**
+ * Returns the `ai` prop for <AgStudio>. Prefers `openaiAdapter` (AG's own example, copied in manually - see
+ * web/src/openaiAdapter.js) when installed; otherwise falls back to `geminiAdapter`, a working adapter built
+ * into Warrant that needs only GEMINI_API_KEY and STUDIO_LLM_PROVIDER=gemini on the server, no OpenAI account.
+ */
 export function buildAi() {
-  if (typeof openaiAdapter !== "function") return undefined;
+  const makeAdapter = typeof openaiAdapter === "function" ? openaiAdapter : geminiAdapter;
   return ({ api }) => createAiHarness(api, ({ tools: { studio } }) => {
-    const adapter = openaiAdapter({ endpoint: "/studio-api/llm", key: token });
+    const adapter = makeAdapter({ endpoint: "/studio-api/llm", key: token });
 
     const getDisputeCase = api.defineAiTool({
       name: "get_dispute_case",

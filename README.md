@@ -53,7 +53,7 @@ Optional sponsor integrations:
 - Elastic: agent-trace search and precedent retrieval over past disputes (semantic + keyword)
 - AG Grid dispute queue on the approval screen, and an AG Studio analytics dashboard at `/studio`
 - Zapier: proposal notifications and an evidence loop that brings delivery proof back
-- PayPal's official sandbox MCP server can optionally provide read-only dispute and catalog context to the Studio analyst (`PAYPAL_MCP_ENABLED=true`)
+- PayPal's official sandbox MCP server can optionally provide read-only dispute and catalog context to the Studio analyst (`PAYPAL_MCP_ENABLED=true`), on either OpenAI or Gemini (`STUDIO_LLM_PROVIDER=gemini`, no OpenAI account needed)
 - Render deployment with persistent SQLite storage
 - Postman collection and `openapi.yaml` describing the HTTP API
 

@@ -14,12 +14,14 @@
     "smoke:order": "tsx src/scripts/smoke-order.ts",
     "smoke:vault": "tsx src/scripts/smoke-vault.ts",
     "smoke:prompt-injection": "tsx src/scripts/smoke-prompt-injection.ts",
+    "smoke:gemini-studio-agent": "tsx src/scripts/smoke-gemini-studio-agent.ts",
     "demo": "tsx src/scripts/demo.ts",
     "demo:offline": "tsx src/scripts/demo-offline.ts",
     "build:web": "vite build --config web/vite.config.mjs",
     "dev:web": "vite --config web/vite.config.mjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
     "zod": "^3.23.8"

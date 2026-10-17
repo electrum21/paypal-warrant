@@ -121,7 +121,7 @@ Verified against the sandbox on 4 October 2026:
 | `make-offer` (partial refund) | **Not offered** for this dispute type and stage. Never exercised |
 | `adjudicate` (sandbox settle) | **Not offered** to the merchant account (no link; `ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE`). Cause unconfirmed |
 | Webhook receiver + `verify-webhook-signature` | **Run live.** `CUSTOMER.DISPUTE.CREATED` reached `warrant-9baj.onrender.com/webhooks/paypal`, verified, and triggered `processDispute` automatically |
-| PayPal Agent Toolkit / MCP server | Optional Studio integration: PayPal sandbox MCP read tools are allow-listed and approval-gated |
+| PayPal Agent Toolkit / MCP server | Optional Studio integration: PayPal sandbox MCP read tools are allow-listed and approval-gated. **Run live** (`npm run smoke:gemini-studio-agent`) against the real sandbox MCP server, through a Gemini-backed bridge (no OpenAI account needed) - see §8 of `docs/08-sponsor-integrations.md` |
 
 The client is hard-pinned to `https://api-m.sandbox.paypal.com`; there is no production switch. Every write sends a `PayPal-Request-Id`; dispute submissions use a stable key (`warrant-<disputeId>-<action>`) so retries cannot double-submit.
 
@@ -133,7 +133,7 @@ The client is hard-pinned to `https://api-m.sandbox.paypal.com`; there is no pro
 | Elastic | Merchant agent's investigation events are indexed and searchable at `/api/agent-events/search`; past cases at `/api/precedents` | **Run live, several queries.** Reliable for exact IDs/tool names, not for natural language over event content; `/api/precedents` relevance is unverified with only one case indexed so far |
 | Zapier | A `proposal_ready`/`proposal_updated`/`evidence_requested` message is sent to a Catch Hook; the Zap can POST delivery evidence back to re-run the proposal | **Run live, full loop.** A `MERCHANDISE_OR_SERVICE_NOT_RECEIVED` dispute triggered `escalate_to_human` and `evidence_requested`; the Zap posted evidence back and the proposal flipped to `contest` |
 | AG Grid (Community) | Dispute queue on the approval screen (`/admin`), a real grid with sorting, filtering and selection. Pinned to major 33 from a CDN | **Fixed.** Earlier versions loaded the library but never created a grid; the queue was hand-built buttons. Verified in a browser against a stubbed grid and API; not yet against the real CDN build |
-| AG Studio | Merchant analytics dashboard at `/studio` (custom Mandate gauge widget, PayPal theme, optional agent) | Production bundle builds successfully; live browser/deployment validation remains |
+| AG Studio | Merchant analytics dashboard at `/studio` (custom Mandate gauge widget, PayPal theme, optional agent) | Production bundle builds successfully. The agent's Gemini bridge is run live (above); the browser chat UI itself and live deployment validation remain |
 | Render, Postman, OpenAPI | `render.yaml`, `postman_collection.json`, `openapi.yaml` | OpenAPI/Postman definitions updated; Render deployment and generated-client validation remain |
 
 ## 9. Data model (SQLite via Node's built-in `node:sqlite`)
@@ -171,7 +171,7 @@ Dispute `workflow_state`: `PROPOSED` → `APPROVED` → `SUBMITTED`, or `FAILED`
 ## 11. Status snapshot (5 October 2026)
 
 **Built and tested (215 tests passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, sponsor adapters, analytics datasets, and Express routes.
-**Run against the PayPal sandbox:** checkout and capture, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), and the discovery that partial-refund offers are not available for this dispute type. Channel3, Elastic and Zapier were each run live. The prompt-injection defense was run live against the configured LLM (`npm run smoke:prompt-injection`).
+**Run against the PayPal sandbox:** checkout and capture, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), and the discovery that partial-refund offers are not available for this dispute type. Channel3, Elastic and Zapier were each run live. The prompt-injection defense was run live against the configured LLM (`npm run smoke:prompt-injection`). The Studio agent's PayPal MCP bridge was run live on Gemini against the real sandbox MCP server (`npm run smoke:gemini-studio-agent`), with no OpenAI account.
 **Deployed:** Render deployment is live (`warrant-9baj.onrender.com`) with the PayPal webhook registered and verifying. A real sandbox dispute (`PP-R-VHE-10193234`) has reached it end to end: the webhook fired, `processDispute` ran with no manual import, and proposed `contest` correctly.
 **Not yet run:** which webhook events fire on dispute *update*/*resolution* (only `CREATED` observed so far), and `make-offer` against a dispute that allows it.
 

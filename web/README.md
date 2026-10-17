@@ -27,14 +27,26 @@ demo request a trial key (see AG's "Installing a Licence Key" page) to remove th
 
 ## Turning the agent on
 
-AG Studio bundles no LLM connection; you supply an adapter. AG publishes one for the OpenAI Responses API
-as part of its "Direct LLM Runner" example.
+AG Studio bundles no LLM connection; you supply an adapter (`AgLlmAdapter`, in
+`ag-studio`'s `api/ai/agLlmAdapter.d.ts`: one method, `executeTurn`, that takes a turn and returns a
+streamed response - everything provider-specific lives in the adapter).
+
+**Gemini, built in (default fallback):** set `GEMINI_API_KEY` and `STUDIO_LLM_PROVIDER=gemini` on the
+server. `src/agent.js` falls back to `src/geminiAdapter.js` whenever `openaiAdapter.js` is still the stub
+below, so no extra wiring is needed. The actual Gemini call - and, when `PAYPAL_MCP_ENABLED`, the PayPal MCP
+tool-call loop, since Gemini has no native MCP connector the way OpenAI's Responses API does - runs
+server-side in `src/integrations/geminiAgentBridge.ts`.
+
+**OpenAI (takes priority if installed):** AG publishes an adapter for the OpenAI Responses API as part of
+its "Direct LLM Runner" example.
 
 1. Copy that example's `openaiAdapter` source over `src/openaiAdapter.js` (exporting `openaiAdapter`).
 2. Make sure the call in `src/agent.js` (`openaiAdapter({ endpoint, key })`) matches that adapter's options.
-3. Set `STUDIO_LLM_API_KEY` (and optionally `STUDIO_LLM_MODEL`) on the server.
+3. Set `STUDIO_LLM_API_KEY` (and optionally `STUDIO_LLM_MODEL`) on the server; leave `STUDIO_LLM_PROVIDER`
+   unset or `openai`.
 
-Until then the dashboard works fully and the agent panel is simply not offered.
+Without either key configured, the dashboard still works fully; agent questions just come back with a
+clear error instead of an answer.
 
 ## Building the demo layout
 
