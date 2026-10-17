@@ -12,7 +12,7 @@ Devpost "Prizes" and each sponsor's details page before submitting.
 | APIMatic | $1k x3 + subscriptions | Using APIMatic output (SDKs, context plugins) | `openapi.yaml` existed but was never put through APIMatic | `openapi.yaml` covers the new routes; **generating a client is still to do** |
 | Render | $1k / $750 / $500 credits | A deployed, working project | `render.yaml` written, never deployed | **Deployed and live** at `warrant-9baj.onrender.com`; `/health` confirms `webhookVerification: true` with the PayPal webhook registered against it |
 | Bryntum | $1k x3 | Gantt / Scheduler / Calendar | Not used | Not used (idea below) |
-| Elastic, Zapier | No cash prize listed; tools and judges | A multi-step agent using retrieval (Elastic); automation/MCP (Zapier) | Log search; one-way webhook | Retrieval the agent uses; the proposal→Catch Hook leg confirmed live against the Render deployment. The evidence-request→callback leg is built but not yet exercised live (needs a non-UNAUTHORISED dispute) |
+| Elastic, Zapier | No cash prize listed; tools and judges | A multi-step agent using retrieval (Elastic); automation/MCP (Zapier) | Log search; one-way webhook | Retrieval the agent uses; **the full two-way Zapier loop confirmed live** (proposal → Catch Hook, and evidence_requested → Zap posts delivery evidence back → proposal flips from escalate_to_human to contest) against the Render deployment |
 
 ## The principle behind every change
 
@@ -54,7 +54,8 @@ way to move money or approve a response. So:
 | Custom Mandate gauge | Bundled with React and rendered in Chromium against fixture data |
 | Express routes in `app.ts`, `app.test.ts`, `checkout.test.ts`, webhook tests | **215 tests pass**; live PayPal, webhook, and deployed-environment validation all confirmed (see docs/03 K) |
 | `web/` AG Studio app and agent | `npm run build:web` succeeds against the installed AG packages; browser runtime and the live OpenAI-backed agent remain (deferred — needs an OpenAI key) |
-| Channel3, Zapier against their live services | Each run multiple times against the live Render deployment with varied inputs; see docs/03 K |
+| Channel3 against its live service | Run multiple times against the live Render deployment with varied inputs; see docs/03 K |
+| Zapier against its live service | **Full two-way loop confirmed**: proposal notifications and the evidence-request callback, both against the live Render deployment; see docs/03 K |
 | Elastic against its live service | Run multiple times against the live deployment. Finding: `/api/agent-events/search` only reliably matches exact IDs/tool names, not natural language; `/api/precedents`'s relevance ranking is unverified with only one case indexed |
 | Render deployment, live webhook | **Done.** Live at `warrant-9baj.onrender.com`; a real sandbox dispute (`PP-R-VHE-10193234`) reached it and produced a correct `contest` proposal with no manual import (see K in docs/03) |
 | APIMatic generation | Not done |
@@ -66,7 +67,7 @@ way to move money or approve a response. So:
 3. Copy AG's `openaiAdapter` into `web/src/openaiAdapter.js`; set `STUDIO_LLM_API_KEY`.
 4. Build the demo layout in Studio and export its state so the page opens pre-built.
 5. ~~Deploy to Render; confirm the live webhook~~ **Done** — live at `warrant-9baj.onrender.com`; a real sandbox dispute reached `/webhooks/paypal` and produced a correct proposal with no manual import.
-6. ~~Make the Zap: Catch Hook~~ **Done** — a fresh Catch Hook received a real `proposal_updated` event from the live deployment. Still to do: the carrier lookup -> Webhooks POST back to `callbackUrl` half, which needs an `escalate_to_human` dispute (a non-UNAUTHORISED reason, no delivery proof) to actually trigger.
+6. ~~Make the Zap: Catch Hook -> carrier lookup -> Webhooks POST to `callbackUrl`~~ **Done, full loop.** A fresh Catch Hook received both `proposal_updated` and `evidence_requested` events from the live deployment, and the Zap's own Webhooks-by-Zapier step posted delivery evidence back, flipping the proposal from `escalate_to_human` to `contest`.
 7. Run APIMatic on `openapi.yaml` and use the generated client in the buyer agent.
 8. Enable `PAYPAL_MCP_ENABLED=true` in a sandbox environment and verify the Studio analyst can retrieve a dispute without changing it.
 9. Record the demo around one story: an agent buys a "running shoe" that Channel3 knows is a phone ->
