@@ -55,7 +55,7 @@ way to move money or approve a response. So:
 | Express routes in `app.ts`, `app.test.ts`, `checkout.test.ts`, webhook tests | **213 tests pass**; live PayPal/webhook and deployed-environment validation remains |
 | `web/` AG Studio app and agent | `npm run build:web` succeeds against the installed AG packages; browser runtime, adapter, and deployed validation remain |
 | Elastic and Channel3 against their live services | Channel3, Elastic, and Zapier have each had one live run; broader failure/mapping coverage remains |
-| Render deployment | **Done.** Live at `warrant-9baj.onrender.com`, PayPal webhook registered and verifying (`PAYPAL_WEBHOOK_ID` set); still to confirm a real sandbox dispute triggers it end to end (see K in docs/03) |
+| Render deployment, live webhook | **Done.** Live at `warrant-9baj.onrender.com`; a real sandbox dispute (`PP-R-VHE-10193234`) reached it and produced a correct `contest` proposal with no manual import (see K in docs/03) |
 | APIMatic generation | Not done |
 
 ## Do next, in order
@@ -64,7 +64,7 @@ way to move money or approve a response. So:
 2. `npm run build:web`, open `/studio/?token=...`, and validate browser runtime behavior (see its README).
 3. Copy AG's `openaiAdapter` into `web/src/openaiAdapter.js`; set `STUDIO_LLM_API_KEY`.
 4. Build the demo layout in Studio and export its state so the page opens pre-built.
-5. ~~Deploy to Render~~ **Done** — live at `warrant-9baj.onrender.com` with the PayPal webhook registered. Next: trigger a real sandbox dispute and confirm it reaches `/webhooks/paypal` and produces a proposal, without a manual import.
+5. ~~Deploy to Render; confirm the live webhook~~ **Done** — live at `warrant-9baj.onrender.com`; a real sandbox dispute reached `/webhooks/paypal` and produced a correct proposal with no manual import.
 6. Make the Zap: Catch Hook -> carrier lookup -> Webhooks POST to `callbackUrl` with the secret header.
 7. Run APIMatic on `openapi.yaml` and use the generated client in the buyer agent.
 8. Enable `PAYPAL_MCP_ENABLED=true` in a sandbox environment and verify the Studio analyst can retrieve a dispute without changing it.

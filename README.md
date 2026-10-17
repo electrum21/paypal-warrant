@@ -75,7 +75,7 @@ Optional sponsor integrations:
 
 ## Week-1 checklist
 Superseded by the full verification log in `docs/03-testing-and-usage.md` section K; kept here only as a quick scorecard.
-- [x] Sandbox: create a dispute from the buyer account. Reason `UNAUTHORISED`, stage `CHARGEBACK`. **Still open:** which webhook fires on creation, since there's no public URL to receive it yet (needs the Render deploy below)
+- [x] Sandbox: create a dispute from the buyer account. Reason `UNAUTHORISED`, stage `CHARGEBACK`. `CUSTOMER.DISPUTE.CREATED` was confirmed firing to the deployed webhook and producing a correct proposal automatically
 - [x] Confirm dispute reason codes (the code assumes `UNAUTHORISED`) — confirmed against a real sandbox dispute
 - [x] Submit evidence via the API and see which formats the sandbox accepts — a JSON `evidences: [{ evidence_type: "OTHER", notes }]` body is accepted
 - [x] Try offer, partial refund and settle — `make-offer` is not offered for this dispute type/stage, and `adjudicate` returns `ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE` for this merchant account. Neither works around it
