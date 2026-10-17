@@ -94,13 +94,29 @@ approval screen.
   for the harness to execute, exactly as the OpenAI adapter leaves it.
 - The browser side mirrors this: `web/src/agent.js` prefers `openaiAdapter.js` (AG's own example, copied
   in by hand) when it has been installed, and otherwise falls back to the built-in `web/src/geminiAdapter.js`.
-- **Verified live (2026-10-17):** `npm run smoke:gemini-studio-agent` exercised the real Gemini API three
-  ways against the real PayPal sandbox MCP server - a plain answer, a call to a declared non-MCP tool
-  left unresolved for the harness, and a `list_disputes` MCP call resolved by the bridge, round-tripped
-  back into a natural-language answer naming real sandbox dispute ids. Not separately verified: the
-  browser-side chat UI itself (`geminiAdapter.js` talking through AG Studio's real `createAiHarness`),
-  since no connected browser was available in that session - the backend bridge it calls into was,
-  though, and the adapter is a thin, mechanical translation on top of it.
+- **Verified live (2026-10-17), backend and browser both.** `npm run smoke:gemini-studio-agent` exercised
+  the real Gemini API against the real PayPal sandbox MCP server: a plain answer, a call to a declared
+  non-MCP tool left unresolved for the harness, a `list_disputes` MCP call resolved by the bridge and
+  round-tripped into an answer naming real sandbox dispute ids, and a discriminated-union tool schema
+  (`anyOf` of two shapes). The user then drove the real browser chat UI at `/studio` and asked it to
+  "chart disputes by recommended action": it read the schema, ran `executeQuery` (self-correcting once
+  after guessing an invalid aggregation function), added a grouped bar widget, and summarised the result
+  correctly (2 contest, 1 accept_claim, 1 offer_partial_refund) - the full path (`geminiAdapter.js` through
+  AG Studio's real `createAiHarness`, into the Gemini bridge, through its own tool-call loop) confirmed
+  working end to end, not just the backend piece.
+- **Two bugs found and fixed only by that live browser run** (neither the unit tests nor the single-turn
+  smoke script caught them, since both are specific to AG Studio's real multi-turn harness):
+  1. `executeTurn` must return `{stream, complete}` **synchronously** per `AgLlmAdapter` - an `async
+     executeTurn` instead returns a Promise, so the harness's `handler.stream` was `undefined`.
+  2. Gemini 3 requires a `thoughtSignature` replayed back on every `functionCall` part, but AG Studio's own
+     tool-call wire format has no field to carry one through the browser round trip, so a client tool call
+     reconstructed from history lost it. Google documents a dummy signature for exactly this case (a call
+     being reconstructed, not one just received live) - MCP tool calls never hit this, since those are
+     resolved inside one `executeTurn` using Gemini's own raw parts, signature intact.
+  Also fixed: `sanitizeSchema()` originally dropped `anyOf`/`oneOf`/`$ref`/`$defs`, collapsing a
+  discriminated-union parameter (like `executeQuery`'s own) to a bare object - Gemini then guessed a shape
+  that didn't match, and Studio's own validation rejected it ("Value did not match any of the discriminated
+  types"). Now preserved, with cycle/depth protection for the self-referential filter-group shape.
 
 ## Render
 
