@@ -50,6 +50,36 @@ describe("runGeminiStudioTurn", () => {
     expect(listPaypalMcpTools).not.toHaveBeenCalled();
   });
 
+  it("keeps a discriminated-union tool parameter schema's anyOf/const/$ref intact instead of collapsing it to a bare object", async () => {
+    const fn = stubGemini([{ candidates: [{ content: { parts: [{ text: "ok" }] } }] }]);
+    const filterRef = { $ref: "#/$defs/filter" };
+    const parameters = {
+      type: "object",
+      $defs: {
+        filter: {
+          anyOf: [
+            { type: "object", properties: { field: { type: "string" }, value: { type: "string" } }, required: ["field", "value"] },
+            // Recursive: a filter group contains more filters - must not blow the stack or drop the branch.
+            { type: "object", properties: { operator: { const: "and" }, conditions: { type: "array", items: filterRef } }, required: ["operator", "conditions"] },
+          ],
+        },
+      },
+      properties: {
+        kind: { const: "apiQuery" },
+        filter: filterRef,
+      },
+    };
+    await runGeminiStudioTurn(cfg, { ...userTurn("chart it"), tools: [{ name: "execute_query", description: "Runs a query", parameters }] });
+
+    const body = JSON.parse(String(fn.mock.calls[0]![1]!.body));
+    const sent = body.tools[0].functionDeclarations[0].parameters;
+    expect(sent.properties.kind).toEqual({ enum: ["apiQuery"] });
+    expect(sent.properties.filter.anyOf).toHaveLength(2);
+    expect(sent.properties.filter.anyOf[0]).toEqual({ type: "object", properties: { field: { type: "string" }, value: { type: "string" } }, required: ["field", "value"] });
+    // The recursive branch resolves at least one level deep, then degrades to a bare object rather than looping.
+    expect(sent.properties.filter.anyOf[1].properties.conditions.items).toEqual({ type: "object" });
+  });
+
   it("resolves a PayPal MCP tool call itself, then returns the model's final answer", async () => {
     vi.mocked(listPaypalMcpTools).mockResolvedValue([{ name: "get_dispute", description: "Reads a sandbox dispute", inputSchema: { type: "object", properties: { id: { type: "string" } } } }]);
     vi.mocked(callPaypalMcpTool).mockResolvedValue(JSON.stringify({ status: "UNDER_REVIEW" }));

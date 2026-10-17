@@ -32,6 +32,40 @@ await run(
   r => (r.status === "completed" && r.output.some(o => o.type === "function_call" && o.name === "get_dispute_case")) ? undefined : "expected a function_call to get_dispute_case",
 );
 
+// A discriminated-union parameter schema (anyOf of two shapes, picked by a `kind` const), modelled on the
+// real shape that broke in the browser (AG Studio's own executeQuery tool). Confirms Gemini accepts `anyOf`
+// in function parameters and picks a branch, rather than just working against the simpler single-shape
+// tools above.
+await run(
+  "Calls a tool whose parameters are a discriminated union (anyOf) with a valid branch",
+  {
+    instructions: "Use the run_query tool. Pick whichever branch of its schema fits a simple count query.",
+    input: [{ kind: "input", type: "message", role: "user", content: [{ type: "text", text: "Run a count query grouped by category." }] }],
+    tools: [{
+      name: "run_query",
+      description: "Runs a query, either a grouped aggregation or a flat projection.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            anyOf: [
+              { type: "object", properties: { kind: { const: "aggregation" }, groupBy: { type: "string" } }, required: ["kind", "groupBy"] },
+              { type: "object", properties: { kind: { const: "projection" }, fields: { type: "array", items: { type: "string" } } }, required: ["kind", "fields"] },
+            ],
+          },
+        },
+        required: ["query"],
+      },
+    }],
+  },
+  r => {
+    const call = r.output.find(o => o.type === "function_call" && o.name === "run_query");
+    if (!call || call.type !== "function_call") return "expected a function_call to run_query";
+    const args = JSON.parse(call.arguments) as { query?: { kind?: string } };
+    return args.query?.kind === "aggregation" || args.query?.kind === "projection" ? undefined : `args didn't match either anyOf branch: ${call.arguments}`;
+  },
+);
+
 // Exercises the real PayPal sandbox MCP server through our own client, bridged into Gemini - forced on here
 // regardless of .env, since the only preconditions (GEMINI_API_KEY, PayPal sandbox credentials) are both present.
 async function runWithMcp() {

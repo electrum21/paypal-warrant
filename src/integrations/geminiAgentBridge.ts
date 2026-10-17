@@ -71,21 +71,40 @@ function toGeminiContents(input: ConvItem[]): GeminiContent[] {
   return contents;
 }
 
-/** AG/MCP JSON Schemas are already OpenAPI-style (lowercase `type`), which is what Gemini expects too - this
- * just drops keys Gemini's schema validator doesn't know, recursively. */
-function sanitizeSchema(schema: unknown): Record<string, unknown> {
-  if (!schema || typeof schema !== "object") return { type: "object", properties: {} };
+/**
+ * AG/MCP JSON Schemas are already OpenAPI-style (lowercase `type`), which is what Gemini expects too - this
+ * drops keys Gemini's schema validator doesn't know, recursively, but keeps `anyOf`/`oneOf` (a discriminated
+ * union, e.g. Studio's own `executeQuery` tool, loses its real shape without these - Gemini then guesses
+ * wrong and Studio's own runtime validation rejects the arguments with "Value did not match any of the
+ * discriminated types") and resolves `$ref`/`$defs` (AG reuses shared sub-schemas, e.g. a filter condition
+ * repeated across `filter`/`filterAggregated`/..., by reference rather than inlining them).
+ * `seen` breaks a `$ref` cycle (AG's filter groups nest themselves) and `depth` is a hard backstop; both just
+ * fall back to a bare object rather than recursing forever.
+ */
+function sanitizeSchema(schema: unknown, defs: Record<string, unknown> = {}, seen: ReadonlySet<string> = new Set(), depth = 0): Record<string, unknown> {
+  if (depth > 8 || !schema || typeof schema !== "object") return { type: "object" };
   const s = schema as Record<string, unknown>;
+  if (s.$defs && typeof s.$defs === "object") defs = { ...defs, ...(s.$defs as Record<string, unknown>) };
+
+  if (typeof s.$ref === "string") {
+    const key = s.$ref.split("/").pop() ?? "";
+    if (seen.has(key) || !(key in defs)) return { type: "object" };
+    return sanitizeSchema(defs[key], defs, new Set([...seen, key]), depth + 1);
+  }
+
   const out: Record<string, unknown> = {};
   if (typeof s.type === "string") out.type = s.type;
   if (typeof s.description === "string") out.description = s.description;
   if (Array.isArray(s.enum)) out.enum = s.enum;
+  if ("const" in s) out.enum = [s.const]; // Gemini's schema has no `const`; a one-value enum is equivalent.
   if (Array.isArray(s.required)) out.required = s.required;
+  const variants = [...(Array.isArray(s.anyOf) ? s.anyOf : []), ...(Array.isArray(s.oneOf) ? s.oneOf : [])];
+  if (variants.length) out.anyOf = variants.map(v => sanitizeSchema(v, defs, seen, depth + 1));
   if (s.properties && typeof s.properties === "object") {
-    out.properties = Object.fromEntries(Object.entries(s.properties as Record<string, unknown>).map(([k, v]) => [k, sanitizeSchema(v)]));
+    out.properties = Object.fromEntries(Object.entries(s.properties as Record<string, unknown>).map(([k, v]) => [k, sanitizeSchema(v, defs, seen, depth + 1)]));
   }
-  if (s.items) out.items = sanitizeSchema(s.items);
-  if (!out.type) out.type = "object";
+  if (s.items) out.items = sanitizeSchema(s.items, defs, seen, depth + 1);
+  if (!out.type && !out.anyOf && !out.enum) out.type = "object";
   return out;
 }
 
