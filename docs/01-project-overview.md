@@ -120,7 +120,7 @@ Verified against the sandbox on 4 October 2026:
 | `accept-claim` | **Works** with `{ note, accept_claim_type: "REFUND" }` (the only type offered). Buyer refunded in full, seller fee reversed |
 | `make-offer` (partial refund) | **Not offered** for this dispute type and stage. Never exercised |
 | `adjudicate` (sandbox settle) | **Not offered** to the merchant account (no link; `ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE`). Cause unconfirmed |
-| Webhook receiver + `verify-webhook-signature` | Written; **never run** (needs a public URL) |
+| Webhook receiver + `verify-webhook-signature` | Deployed and reachable at `warrant-9baj.onrender.com/webhooks/paypal`; `verify-webhook-signature` itself fires once a real PayPal event arrives, **not yet observed** |
 | PayPal Agent Toolkit / MCP server | Optional Studio integration: PayPal sandbox MCP read tools are allow-listed and approval-gated |
 
 The client is hard-pinned to `https://api-m.sandbox.paypal.com`; there is no production switch. Every write sends a `PayPal-Request-Id`; dispute submissions use a stable key (`warrant-<disputeId>-<action>`) so retries cannot double-submit.
@@ -172,7 +172,8 @@ Dispute `workflow_state`: `PROPOSED` → `APPROVED` → `SUBMITTED`, or `FAILED`
 
 **Built and tested (215 tests passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, sponsor adapters, analytics datasets, and Express routes.
 **Run against the PayPal sandbox:** checkout and capture, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), and the discovery that partial-refund offers are not available for this dispute type. Channel3, Elastic and Zapier were each run live. The prompt-injection defense was run live against the configured LLM (`npm run smoke:prompt-injection`).
-**Not yet run:** live webhooks (and signature verification), Render deployment, `make-offer` against a dispute that allows it, and a generated APIMatic client.
+**Deployed:** Render deployment is live (`warrant-9baj.onrender.com`) with the PayPal webhook registered and verifying.
+**Not yet run:** a real sandbox dispute reaching the deployed webhook end to end (only locally simulated events are confirmed so far), `make-offer` against a dispute that allows it, and a generated APIMatic client.
 
 Full results are in `docs/03-testing-and-usage.md`, part K.
 

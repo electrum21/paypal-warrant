@@ -10,7 +10,7 @@ Devpost "Prizes" and each sponsor's details page before submitting.
 | **AG Grid** | $5k / $2k / $1k x3 | **AG Studio**: custom widgets, theming, layout, the Studio Agent Framework. "Not just AG Grid on its own" | Library loaded but **never instantiated**; the docs said it was in use | Real grid on `/admin`; a Studio dashboard with theme, custom widget and agent scaffold |
 | **Channel3** | $1,500 (one winner) | "Search, product enrichment, or recommendations" | Search only; results relabeled with the category the *buyer asked for* | Search, enrichment (verifies what was bought against Channel3's own data), and recommendations (in-mandate alternatives after a refusal) |
 | APIMatic | $1k x3 + subscriptions | Using APIMatic output (SDKs, context plugins) | `openapi.yaml` existed but was never put through APIMatic | `openapi.yaml` covers the new routes; **generating a client is still to do** |
-| Render | $1k / $750 / $500 credits | A deployed, working project | `render.yaml` written, never deployed | Build command updated; **deploying is still to do** |
+| Render | $1k / $750 / $500 credits | A deployed, working project | `render.yaml` written, never deployed | **Deployed and live** at `warrant-9baj.onrender.com`; `/health` confirms `webhookVerification: true` with the PayPal webhook registered against it |
 | Bryntum | $1k x3 | Gantt / Scheduler / Calendar | Not used | Not used (idea below) |
 | Elastic, Zapier | No cash prize listed; tools and judges | A multi-step agent using retrieval (Elastic); automation/MCP (Zapier) | Log search; one-way webhook | Retrieval the agent uses; a two-way evidence loop |
 
@@ -55,7 +55,8 @@ way to move money or approve a response. So:
 | Express routes in `app.ts`, `app.test.ts`, `checkout.test.ts`, webhook tests | **213 tests pass**; live PayPal/webhook and deployed-environment validation remains |
 | `web/` AG Studio app and agent | `npm run build:web` succeeds against the installed AG packages; browser runtime, adapter, and deployed validation remain |
 | Elastic and Channel3 against their live services | Channel3, Elastic, and Zapier have each had one live run; broader failure/mapping coverage remains |
-| Render deployment, APIMatic generation | Not done |
+| Render deployment | **Done.** Live at `warrant-9baj.onrender.com`, PayPal webhook registered and verifying (`PAYPAL_WEBHOOK_ID` set); still to confirm a real sandbox dispute triggers it end to end (see K in docs/03) |
+| APIMatic generation | Not done |
 
 ## Do next, in order
 
@@ -63,7 +64,7 @@ way to move money or approve a response. So:
 2. `npm run build:web`, open `/studio/?token=...`, and validate browser runtime behavior (see its README).
 3. Copy AG's `openaiAdapter` into `web/src/openaiAdapter.js`; set `STUDIO_LLM_API_KEY`.
 4. Build the demo layout in Studio and export its state so the page opens pre-built.
-5. Deploy to Render (also unblocks the PayPal webhook, which has only run locally).
+5. ~~Deploy to Render~~ **Done** — live at `warrant-9baj.onrender.com` with the PayPal webhook registered. Next: trigger a real sandbox dispute and confirm it reaches `/webhooks/paypal` and produces a proposal, without a manual import.
 6. Make the Zap: Catch Hook -> carrier lookup -> Webhooks POST to `callbackUrl` with the secret header.
 7. Run APIMatic on `openapi.yaml` and use the generated client in the buyer agent.
 8. Enable `PAYPAL_MCP_ENABLED=true` in a sandbox environment and verify the Studio analyst can retrieve a dispute without changing it.

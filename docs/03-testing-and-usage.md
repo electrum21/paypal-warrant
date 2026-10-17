@@ -331,7 +331,7 @@ Merchant-facing (header `x-admin-token`, or `?token=` on the page):
 - [x] The note sent to PayPal passed validation and arrived intact, including the code-written block with the mandate ID, hash, and instruction.
 - [x] `ENFORCE_MANDATE=true` refuses an out-of-mandate checkout with a 422 and no PayPal order.
 - [x] The webhook receiver preserves the raw body, verifies events through PayPal's verification endpoint, stores verified/unverified events, and deduplicates event IDs. Local tests cover malformed, unverified, and duplicate events.
-- [ ] Which webhook event types PayPal sends at creation, update and resolution. **Not tested against the live Sandbox.**
+- [ ] Which webhook event types PayPal sends at creation, update and resolution. The receiver is now deployed and reachable (`warrant-9baj.onrender.com/webhooks/paypal`, webhook ID registered, `/health` reports `webhookVerification: true`), but **no real sandbox event has reached it yet** — create a dispute as the sandbox buyer and check `/admin` (or the Render logs) for it to tick this.
 - [x] The complete browser-driven `/api/checkout` autonomous purchase path against live PayPal.
 - [x] PayPal's official MCP server was investigated. Studio can opt in to the sandbox read tools
   `list_disputes`, `get_dispute`, `list_product`, and `show_product_details`; live MCP invocation

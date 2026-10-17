@@ -82,6 +82,6 @@ Superseded by the full verification log in `docs/03-testing-and-usage.md` sectio
 - [x] Check what PayPal's MCP server exposes — its sandbox read tools are allow-listed for the Studio analyst; the PayPal Agent Toolkit itself was not separately investigated
 - [x] Verify the Disputes API request bodies (evidence type, accept-claim reason, JSON vs multipart) — both confirmed against the sandbox
 - [x] Run `smoke:order` then `/api/checkout` against the sandbox and confirm the capture ID matches the dispute's seller transaction — confirmed
-- [ ] Deploy the webhook receiver (Render) and register the webhook ID
+- [x] Deploy the webhook receiver (Render) and register the webhook ID — live at `warrant-9baj.onrender.com`, `/health` confirms `webhookVerification: true`
 
 MIT licensed.
