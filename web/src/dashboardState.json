@@ -1,0 +1,164 @@
+{
+  "pages": [
+    {
+      "id": "page-1",
+      "widgets": {
+        "dispute_rate_by_agent_bar_chart_001": {
+          "type": "bar-chart-grouped",
+          "format": {
+            "caption": {
+              "enabled": true,
+              "text": "Dispute Rate by Agent (%)"
+            }
+          },
+          "dataMapping": {
+            "categoryKey": [
+              {
+                "id": "agents.agentId"
+              }
+            ],
+            "valueKey": [
+              {
+                "id": "agents.disputeRatePct",
+                "aggregation": "first"
+              }
+            ]
+          }
+        },
+        "disputes_by_action_donut_001": {
+          "type": "donut-chart",
+          "format": {
+            "caption": {
+              "enabled": true,
+              "text": "Disputes by Recommended Action"
+            }
+          },
+          "dataMapping": {
+            "categoryKey": [
+              {
+                "id": "disputes.recommendedAction"
+              }
+            ],
+            "valueKey": [
+              {
+                "id": "disputes.id",
+                "aggregation": "count"
+              }
+            ]
+          }
+        },
+        "disputes_by_primary_finding_bar_001": {
+          "type": "bar-chart-grouped",
+          "format": {
+            "caption": {
+              "enabled": true,
+              "text": "Disputes by Primary Finding"
+            }
+          },
+          "dataMapping": {
+            "categoryKey": [
+              {
+                "id": "disputes.primaryFinding"
+              }
+            ],
+            "valueKey": [
+              {
+                "id": "disputes.id",
+                "aggregation": "count"
+              }
+            ]
+          }
+        },
+        "orders_by_verdict_bar_001": {
+          "type": "bar-chart-grouped",
+          "format": {
+            "caption": {
+              "enabled": true,
+              "text": "Orders by Product Verdict"
+            }
+          },
+          "dataMapping": {
+            "categoryKey": [
+              {
+                "id": "orders.productVerdict"
+              }
+            ],
+            "valueKey": [
+              {
+                "id": "orders.orderId",
+                "aggregation": "count"
+              }
+            ]
+          }
+        },
+        "over_limit_by_agent_bar_001": {
+          "type": "bar-chart-grouped",
+          "format": {
+            "caption": {
+              "enabled": true,
+              "text": "Disputes Over Limit By Agent"
+            }
+          },
+          "dataMapping": {
+            "categoryKey": [
+              {
+                "id": "disputes.agentId"
+              }
+            ],
+            "valueKey": [
+              {
+                "id": "disputes.overLimitBy",
+                "aggregation": "sum"
+              }
+            ]
+          }
+        }
+      },
+      "widgetLayout": {
+        "dispute_rate_by_agent_bar_chart_001": {
+          "xTrack": 0,
+          "yTrack": 0,
+          "xSpan": 12,
+          "ySpan": 11
+        },
+        "disputes_by_action_donut_001": {
+          "xTrack": 12,
+          "yTrack": 0,
+          "xSpan": 11,
+          "ySpan": 25
+        },
+        "disputes_by_primary_finding_bar_001": {
+          "xTrack": 0,
+          "yTrack": 11,
+          "xSpan": 12,
+          "ySpan": 14
+        },
+        "orders_by_verdict_bar_001": {
+          "xTrack": 0,
+          "yTrack": 25,
+          "xSpan": 12,
+          "ySpan": 16
+        },
+        "over_limit_by_agent_bar_001": {
+          "xTrack": 12,
+          "yTrack": 25,
+          "xSpan": 11,
+          "ySpan": 16
+        }
+      }
+    }
+  ],
+  "selectedPageId": "page-1",
+  "version": "3.0.0",
+  "panels": {
+    "filters": {
+      "collapsed": true
+    },
+    "edit": {
+      "collapsed": true
+    },
+    "data": {
+      "collapsed": true
+    }
+  }
+}

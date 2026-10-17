@@ -9,6 +9,19 @@ export async function warrant(path) {
   return body;
 }
 
+/** Persists the dashboard layout (api.getState()) to web/src/dashboardState.json on the server, so a
+ * rebuild bakes it in as the Studio page's initialState - see App.jsx's "Export layout" button. */
+export async function saveDashboardState(state) {
+  const res = await fetch("/studio-api/dashboard-state", {
+    method: "POST",
+    headers: { "x-admin-token": token, "content-type": "application/json" },
+    body: JSON.stringify(state),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || res.statusText);
+  return body;
+}
+
 /** The flat tables Studio charts. See src/analytics/datasets.ts for what each row means. */
 export async function loadDatasets() {
   const d = await warrant("/api/analytics/datasets");

@@ -1,6 +1,6 @@
 import express, { type NextFunction, type Request, type Response } from "express";
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
 import { z } from "zod";
@@ -713,6 +713,16 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
       console.error("studio llm proxy failed", err);
       if (!res.headersSent) res.status(502).json({ error: "The language model endpoint could not be reached." });
     }
+  });
+
+  // Local-dev convenience: persists a built dashboard layout (api.getState(), from App.jsx's "Export layout"
+  // button) to web/src/dashboardState.json, so the next `npm run build:web` bakes it in as the Studio page's
+  // initialState and it ships pre-built rather than opening to a blank canvas. Not meant to run against the
+  // deployed build - Render's filesystem for app source is ephemeral, so this only matters locally.
+  app.post("/studio-api/dashboard-state", express.json({ limit: "2mb" }), adminAuth, (req, res) => {
+    const dest = fileURLToPath(new URL("../../web/src/dashboardState.json", import.meta.url));
+    writeFileSync(dest, `${JSON.stringify(req.body ?? null, null, 2)}\n`);
+    res.json({ ok: true });
   });
 
   // The built Studio app (npm run build:web). Static files only: every data call it makes needs the admin token.
