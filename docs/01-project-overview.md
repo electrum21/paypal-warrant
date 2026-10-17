@@ -170,9 +170,9 @@ Dispute `workflow_state`: `PROPOSED` → `APPROVED` → `SUBMITTED`, or `FAILED`
 
 ## 11. Status snapshot (5 October 2026)
 
-**Built and tested (213 tests passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, sponsor adapters, analytics datasets, and Express routes.
-**Run against the PayPal sandbox:** checkout and capture, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), and the discovery that partial-refund offers are not available for this dispute type. Channel3, Elastic and Zapier were each run live.
-**Not yet run:** live webhooks (and signature verification), Render deployment, the prompt-injection test through `buy-request`, `make-offer` against a dispute that allows it, and a generated APIMatic client.
+**Built and tested (215 tests passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, sponsor adapters, analytics datasets, and Express routes.
+**Run against the PayPal sandbox:** checkout and capture, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), and the discovery that partial-refund offers are not available for this dispute type. Channel3, Elastic and Zapier were each run live. The prompt-injection defense was run live against the configured LLM (`npm run smoke:prompt-injection`).
+**Not yet run:** live webhooks (and signature verification), Render deployment, `make-offer` against a dispute that allows it, and a generated APIMatic client.
 
 Full results are in `docs/03-testing-and-usage.md`, part K.
 
