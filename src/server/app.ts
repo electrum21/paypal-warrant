@@ -18,7 +18,7 @@ import { verifyAuthorization } from "../mandate/authorize.js";
 import { isEd25519PublicKeyPem } from "../mandate/sign.js";
 import { cartAlreadyUsed, getAgentEvent, getAgentKey, getAgentOwner, getAgentPause, getMandateUsage, getPaymentAuthorization, getRevocation, getUserKey, linkPaymentToken, listMandateUses, listUserOrders, markCaptured, markMandateUse, recordControlEvent, recordKeyChange, recordOrder, registerAgentKey, registerUserKey, reserveMandateUse, revokePaymentAuthorization, saveMandate, saveProductCheck, toIso, type UseStatus } from "../repo.js";
 import { adminPageHtml } from "./adminPage.js";
-import { productFindings, searchChannel3, verifyProduct } from "../integrations/channel3.js";
+import { productFindings, searchChannel3, suggestAlternatives, verifyProduct } from "../integrations/channel3.js";
 import { caseSummary, findSimilarCases, indexAgentEvent, indexDisputeCase, outcomeOf, searchAgentEvents, type DisputeCase } from "../integrations/elastic.js";
 import { buildZapierEvent, notifyZapier } from "../integrations/zapier.js";
 import { buildAnalytics } from "../analytics/datasets.js";
@@ -306,7 +306,10 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
     // Autonomous mode moves money with no human in the loop, so it ALWAYS enforces the mandate,
     // whatever ENFORCE_MANDATE says. Out-of-mandate purchases are only ever recorded when a person approves them.
     if ((cfg.ENFORCE_MANDATE || mode === "autonomous") && blocked) {
-      return res.status(422).json({ error: "Purchase is outside the mandate and was not processed.", findings });
+      // Helps the buyer agent recover: an in-mandate product it could try instead, found the same way it searched originally.
+      const alternatives = await suggestAlternatives(cfg.CHANNEL3_URL, cfg.CHANNEL3_API_KEY, sm.mandate, cfg.MERCHANT_ID);
+      return res.status(422).json({ error: "Purchase is outside the mandate and was not processed.", findings,
+        ...(alternatives.length ? { alternatives } : {}) });
     }
 
     if (mode === "autonomous") {

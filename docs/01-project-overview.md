@@ -129,7 +129,7 @@ The client is hard-pinned to `https://api-m.sandbox.paypal.com`; there is no pro
 
 | Integration | What it does | Status |
 |---|---|---|
-| Channel3 | **Search and verification.** `buy-request` searches real products (`POST /v1/search`, `x-api-key`). The demo store lists the cheapest in-budget offer as its own item and keeps the retailer in the description | **Run live (search).** Selected a real $39.99 product and completed a sandbox checkout |
+| Channel3 | **Search, verification, and recommendations.** `buy-request` searches real products (`POST /v1/search`, `x-api-key`). The demo store lists the cheapest in-budget offer as its own item and keeps the retailer in the description. A checkout refused for being outside the mandate gets in-mandate alternatives from the same search | **Run live (search).** Selected a real $39.99 product and completed a sandbox checkout |
 | Elastic | Merchant agent's investigation events are indexed and searchable at `/api/agent-events/search` | **Run live.** Search by tool name and by content both return results |
 | Zapier | A `proposal_ready` message is sent to a Catch Hook when a proposal is created | **Run live.** Received with dispute ID, action and reason |
 | AG Grid (Community) | Dispute queue on the approval screen (`/admin`), a real grid with sorting, filtering and selection. Pinned to major 33 from a CDN | **Fixed.** Earlier versions loaded the library but never created a grid; the queue was hand-built buttons. Verified in a browser against a stubbed grid and API; not yet against the real CDN build |

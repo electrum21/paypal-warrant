@@ -63,6 +63,28 @@ export async function searchChannel3(
   });
 }
 
+/**
+ * After a checkout is refused for being outside the mandate, offer in-mandate alternatives through the
+ * same search the buyer agent used to plan the purchase. Never blocks or changes the refusal: a search
+ * failure or missing configuration just means no alternatives are suggested.
+ */
+export async function suggestAlternatives(
+  endpoint: string | undefined, apiKey: string | undefined,
+  mandate: { description: string; maxAmountCents: number; currency: string; allowedCategories?: string[] },
+  merchantId: string,
+): Promise<ProductCandidate[]> {
+  if (!mandate.allowedCategories?.length) return [];
+  try {
+    const products = await searchChannel3(endpoint, apiKey, {
+      query: mandate.description, maxAmountCents: mandate.maxAmountCents, currency: mandate.currency,
+      category: mandate.allowedCategories[0], merchantId,
+    });
+    return products.slice(0, 3);
+  } catch {
+    return [];
+  }
+}
+
 // ---- Product enrichment: verify WHAT was bought ---------------------------------------------------------------
 //
 // Search tells the buyer agent what exists. Enrichment lets the MERCHANT check what the agent says it bought.

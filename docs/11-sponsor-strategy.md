@@ -8,7 +8,7 @@ Devpost "Prizes" and each sponsor's details page before submitting.
 | Sponsor | What the page offers | What it rewards | Where Warrant stood | Where it stands now |
 |---|---|---|---|---|
 | **AG Grid** | $5k / $2k / $1k x3 | **AG Studio**: custom widgets, theming, layout, the Studio Agent Framework. "Not just AG Grid on its own" | Library loaded but **never instantiated**; the docs said it was in use | Real grid on `/admin`; a Studio dashboard with theme, custom widget and agent scaffold |
-| **Channel3** | $1,500 (one winner) | "Search, product enrichment, or recommendations" | Search only; results relabeled with the category the *buyer asked for* | Enrichment: verifies what was bought against Channel3's own data |
+| **Channel3** | $1,500 (one winner) | "Search, product enrichment, or recommendations" | Search only; results relabeled with the category the *buyer asked for* | Search, enrichment (verifies what was bought against Channel3's own data), and recommendations (in-mandate alternatives after a refusal) |
 | APIMatic | $1k x3 + subscriptions | Using APIMatic output (SDKs, context plugins) | `openapi.yaml` existed but was never put through APIMatic | `openapi.yaml` covers the new routes; **generating a client is still to do** |
 | Render | $1k / $750 / $500 credits | A deployed, working project | `render.yaml` written, never deployed | Build command updated; **deploying is still to do** |
 | Bryntum | $1k x3 | Gantt / Scheduler / Calendar | Not used | Not used (idea below) |
@@ -39,6 +39,10 @@ way to move money or approve a response. So:
    Zap would not have appeared.
 5. **AG Studio app** (`web/`): theme, data sources, custom Mandate gauge widget, agent scaffold, model proxy.
 6. **PayPal MCP server.** The optional Studio analyst can read PayPal sandbox disputes and catalog records through PayPal's official MCP server. The server injects only an allow-listed set of read tools and requires approval for every MCP call; it cannot approve, submit, refund, or otherwise move money.
+7. **Channel3 alternatives.** A checkout refused for being outside the mandate (wrong category or over budget)
+   now searches Channel3 for in-mandate products the buyer agent could try instead, using the same search
+   surface `buy-request` already uses. Never widens or changes the refusal; a search failure or missing
+   Channel3 configuration just means no alternatives are returned.
 
 ## Verification status (be straight about this in the submission)
 
@@ -72,4 +76,3 @@ way to move money or approve a response. So:
 - **Bryntum Scheduler/Calendar** for dispute response deadlines (PayPal gives sellers a due date). A good
   fit for the $1k prizes but a second licensed library.
 - **Postman**: the three new routes are now included; run them against a configured local or deployed server.
-- **Channel3 recommendations**: after a refused purchase, suggest an in-mandate alternative to the buyer agent.

@@ -306,6 +306,28 @@ describe("natural-language request -> Channel3 -> autonomous checkout", () => {
     expect(charges).toHaveLength(0);
   });
 
+  it("suggests in-mandate Channel3 alternatives alongside a category refusal", async () => {
+    const { db, user, agent } = await setup({ ...cfg, CHANNEL3_URL: "https://channel3.test", CHANNEL3_API_KEY: "k" } as Config);
+    linkPaymentToken(db, user.userId, "TOK-1");
+    channel3Products = [{ id: "p-1", title: "Ridge Trail Shoe", offers: [{ domain: "shoes.test", price: { price: 89, currency: "USD" } }] }];
+    const sm = signFor(user, buildMandate(agent, MERCHANT));                             // mandate: footwear, max $120
+    const cart = cartFor(agent, sm, { merchantId: MERCHANT, amountCents: 11500, category: "electronics" });
+    const r = await post({ signedMandate: sm, signedCart: cart, purchase: { amountCents: 11500, category: "electronics" }, mode: "autonomous" });
+    expect(r.status).toBe(422);
+    expect(r.body.alternatives).toEqual([expect.objectContaining({ id: "p-1", amountCents: 8900, source: "channel3" })]);
+    expect(charges).toHaveLength(0);
+  });
+
+  it("omits alternatives when Channel3 is not configured", async () => {
+    const { db, user, agent } = await setup();
+    linkPaymentToken(db, user.userId, "TOK-1");
+    const sm = signFor(user, buildMandate(agent, MERCHANT));
+    const cart = cartFor(agent, sm, { merchantId: MERCHANT, amountCents: 11500, category: "electronics" });
+    const r = await post({ signedMandate: sm, signedCart: cart, purchase: { amountCents: 11500, category: "electronics" }, mode: "autonomous" });
+    expect(r.status).toBe(422);
+    expect(r.body.alternatives).toBeUndefined();
+  });
+
   it("refuses without a linked payment method and charges nothing", async () => {
     const { user, agent } = await setup();
     const r = await buyFromRequest(base, "Buy trail running shoes under $120", { user, agent, merchantId: MERCHANT }, "autonomous");

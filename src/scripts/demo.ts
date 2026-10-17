@@ -43,7 +43,8 @@ if (cmd === "register") {
   console.log(`Scenario ${s}: ${sc.label}\nAutonomous purchase: no approval link, the saved PayPal account is charged directly.`);
   const r = await checkout(base, signedMandate, signedCart, { amountCents: sc.amountCents, category: sc.category, description: `Warrant demo auto (${s})` }, "autonomous");
   if (r.status === 201) console.log(`Paid. Order ${r.body.orderId}, capture ${r.body.captureId}. Findings: ${r.body.findings.length ? r.body.findings.map((f: any) => f.code).join(", ") : "none"}\nNow raise a dispute on that payment as the sandbox buyer, then: npm run demo -- import <PAYPAL_DISPUTE_ID>`);
-  else console.log(`Refused (${r.status}): ${r.body.error}${r.body.findings?.length ? ` Findings: ${r.body.findings.map((f: any) => f.code).join(", ")}` : ""}`);
+  else console.log(`Refused (${r.status}): ${r.body.error}${r.body.findings?.length ? ` Findings: ${r.body.findings.map((f: any) => f.code).join(", ")}` : ""}`
+    + (r.body.alternatives?.length ? `\nIn-mandate alternatives: ${r.body.alternatives.map((p: any) => `${p.description} (${(p.amountCents / 100).toFixed(2)} ${p.currency})`).join("; ")}` : ""));
 } else if (cmd === "buy") {
   const s = arg as Scenario;
   if (!SCENARIOS[s]) { console.error(`Usage: npm run demo -- buy <${Object.keys(SCENARIOS).join("|")}>`); process.exit(1); }
