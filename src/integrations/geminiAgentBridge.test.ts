@@ -89,7 +89,7 @@ describe("runGeminiStudioTurn", () => {
     expect(r.error?.code).toBe("upstream_error");
   });
 
-  it("carries a prior function_call/function_call_output pair from the conversation into Gemini's contents", async () => {
+  it("carries a prior function_call/function_call_output pair from the conversation into Gemini's contents, with a dummy thought signature since the real one never survives AG's own wire format", async () => {
     const fn = stubGemini([{ candidates: [{ content: { parts: [{ text: "Done." }] } }] }]);
     const request: StudioLlmRequest = {
       input: [
@@ -102,7 +102,7 @@ describe("runGeminiStudioTurn", () => {
     const body = JSON.parse(String(fn.mock.calls[0]![1]!.body));
     expect(body.contents).toEqual([
       { role: "user", parts: [{ text: "Look up dispute 2" }] },
-      { role: "model", parts: [{ functionCall: { name: "get_dispute_case", args: { disputeId: 2 } } }] },
+      { role: "model", parts: [{ functionCall: { name: "get_dispute_case", args: { disputeId: 2 } }, thoughtSignature: "skip_thought_signature_validator" }] },
       { role: "function", parts: [{ functionResponse: { name: "get_dispute_case", response: { result: { workflowState: "escalated" } } } }] },
     ]);
   });

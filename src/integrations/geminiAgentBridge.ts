@@ -21,10 +21,21 @@ export interface StudioLlmResponse {
   error?: { code: string; message: string };
 }
 
-type GeminiFunctionCallPart = { functionCall: { name: string; args?: Record<string, unknown> } };
+type GeminiFunctionCallPart = { functionCall: { name: string; args?: Record<string, unknown> }; thoughtSignature?: string };
 type GeminiPart = { text?: string } | GeminiFunctionCallPart | { functionResponse: { name: string; response: Record<string, unknown> } };
 type GeminiContent = { role: "user" | "model" | "function"; parts: GeminiPart[] };
 interface GeminiGenerateContentResponse { candidates?: { content?: { parts?: GeminiPart[] } }[] }
+
+/**
+ * Gemini 3+ attaches a `thoughtSignature` to a functionCall part and requires it back unchanged when that
+ * call is replayed in later history, even at minimal thinking - but AG Studio's own tool-call wire format
+ * (StudioToolCall) has no field to carry it through the browser round trip, so by the time a CLIENT tool
+ * call (one AG's harness - not us - executed) comes back as history, the original signature is gone. Google
+ * documents exactly this escape hatch for a function call you're reconstructing rather than one you just
+ * received live: a dummy signature skips validation. MCP tool calls never hit this - they're resolved
+ * inside one executeTurn using Gemini's own raw `parts`, signature intact, never round-tripped through AG.
+ */
+const DUMMY_THOUGHT_SIGNATURE = "skip_thought_signature_validator";
 
 let idSeq = 0;
 function nextId(prefix: string): string { idSeq += 1; return `${prefix}_${Date.now()}_${idSeq}`; }
@@ -49,7 +60,7 @@ function toGeminiContents(input: ConvItem[]): GeminiContent[] {
       callNames.set(item.callId, item.name);
       let args: Record<string, unknown> = {};
       try { args = JSON.parse(item.arguments || "{}"); } catch { /* keep empty */ }
-      contents.push({ role: "model", parts: [{ functionCall: { name: item.name, args } }] });
+      contents.push({ role: "model", parts: [{ functionCall: { name: item.name, args }, thoughtSignature: DUMMY_THOUGHT_SIGNATURE }] });
     } else if (item.type === "function_call_output") {
       const name = callNames.get(item.callId) ?? "unknown_function";
       let result: unknown;
