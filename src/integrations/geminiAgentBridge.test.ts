@@ -80,6 +80,23 @@ describe("runGeminiStudioTurn", () => {
     expect(sent.properties.filter.anyOf[1].properties.conditions.items).toEqual({ type: "object" });
   });
 
+  it("preserves a plain leaf type at ten-plus levels of ordinary (non-cyclic) nesting - structural depth is not a cycle", async () => {
+    // Regression: an earlier version capped on raw recursion depth, not on the $ref chain that can actually
+    // cycle, so a real schema this deep (like execute_query's) silently flattened an ordinary string leaf to
+    // a bare object partway down - Gemini then invented a value to fill the gap and Studio's own validation
+    // rejected it. Nothing here is recursive; it's just deep, the way execute_query's real schema is.
+    let leaf: Record<string, unknown> = { type: "string" };
+    for (let i = 0; i < 12; i++) leaf = { type: "object", properties: { next: leaf }, required: ["next"] };
+    const fn = stubGemini([{ candidates: [{ content: { parts: [{ text: "ok" }] } }] }]);
+
+    await runGeminiStudioTurn(cfg, { ...userTurn("go"), tools: [{ name: "deep_tool", description: "d", parameters: leaf }] });
+
+    const body = JSON.parse(String(fn.mock.calls[0]![1]!.body));
+    let sent = body.tools[0].functionDeclarations[0].parameters;
+    for (let i = 0; i < 12; i++) sent = sent.properties.next;
+    expect(sent).toEqual({ type: "string" });
+  });
+
   it("resolves a PayPal MCP tool call itself, then returns the model's final answer", async () => {
     vi.mocked(listPaypalMcpTools).mockResolvedValue([{ name: "get_dispute", description: "Reads a sandbox dispute", inputSchema: { type: "object", properties: { id: { type: "string" } } } }]);
     vi.mocked(callPaypalMcpTool).mockResolvedValue(JSON.stringify({ status: "UNDER_REVIEW" }));

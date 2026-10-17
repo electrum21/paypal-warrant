@@ -66,6 +66,42 @@ await run(
   },
 );
 
+// Models the real shape that broke live in the browser: a plain string leaf (`aggregation`) ten-plus levels
+// deep inside execute_query's real schema, which an earlier version of sanitizeSchema() flattened to a bare
+// object purely from recursion depth, well before any real $ref cycle - Gemini then invented a value
+// (`{ id: "count" }` instead of the plain string `"count"`) to fill the gap. Nothing here is recursive, it's
+// just deep, so this is really checking that ordinary depth no longer gets clipped.
+{
+  // Pad with trivial single-property wrapper levels so the real leaf sits well past where the old,
+  // now-removed depth cap (8) used to clip it - purely structural, nothing recursive.
+  let field: Record<string, unknown> = {
+    type: "object",
+    required: ["id", "aggregation"],
+    properties: {
+      id: { type: "string", description: "Dotted field id, e.g. 'disputes.id'." },
+      aggregation: { type: "string", enum: ["count", "sum", "avg", "min", "max"], description: "Must be exactly one of these strings - never an object." },
+    },
+  };
+  for (let i = 0; i < 10; i++) field = { type: "object", required: ["next"], properties: { next: field } };
+
+  await run(
+    "Keeps a plain string leaf intact well past the old depth cap, not just in a synthetic flat schema",
+    {
+      instructions: "Use the run_query tool. Its 'field' parameter is wrapped several levels deep under 'next' - follow it down to the real id/aggregation object.",
+      input: [{ kind: "input", type: "message", role: "user", content: [{ type: "text", text: "Count disputes grouped by recommended action: field id 'disputes.id', aggregation 'count'." }] }],
+      tools: [{ name: "run_query", description: "Runs a grouped count query.", parameters: { type: "object", properties: { field }, required: ["field"] } }],
+    },
+    r => {
+      const call = r.output.find(o => o.type === "function_call" && o.name === "run_query");
+      if (!call || call.type !== "function_call") return "expected a function_call to run_query";
+      let node = JSON.parse(call.arguments) as Record<string, unknown>;
+      while (node.field || node.next) node = (node.field ?? node.next) as Record<string, unknown>;
+      const agg = (node as { aggregation?: unknown }).aggregation;
+      return typeof agg === "string" ? undefined : `expected aggregation to be a plain string, got: ${JSON.stringify(agg)} (full args: ${call.arguments})`;
+    },
+  );
+}
+
 // Exercises the real PayPal sandbox MCP server through our own client, bridged into Gemini - forced on here
 // regardless of .env, since the only preconditions (GEMINI_API_KEY, PayPal sandbox credentials) are both present.
 async function runWithMcp() {

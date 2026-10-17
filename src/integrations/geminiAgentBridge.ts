@@ -78,18 +78,24 @@ function toGeminiContents(input: ConvItem[]): GeminiContent[] {
  * wrong and Studio's own runtime validation rejects the arguments with "Value did not match any of the
  * discriminated types") and resolves `$ref`/`$defs` (AG reuses shared sub-schemas, e.g. a filter condition
  * repeated across `filter`/`filterAggregated`/..., by reference rather than inlining them).
- * `seen` breaks a `$ref` cycle (AG's filter groups nest themselves) and `depth` is a hard backstop; both just
- * fall back to a bare object rather than recursing forever.
+ * `seen` is the real cycle breaker: it tracks the `$ref` chain, the only way a finite schema can recurse
+ * forever (AG's filter groups nest themselves). It must NOT count plain structural nesting (properties,
+ * items, anyOf) - `executeQuery`'s own schema is legitimately ten-plus levels deep with no cycle in sight,
+ * and an earlier version of this function capped on raw depth instead, which silently flattened ordinary
+ * leaves like a plain string `id` to a bare object several levels down - Gemini then invented nonsense to
+ * fill the gap (`aggregation: { id: "count" }` instead of the plain string `"count"` the real schema
+ * wants), and Studio's own validation rejected it. `refDepth` only backstops a pathologically long $ref
+ * chain, not depth in general.
  */
-function sanitizeSchema(schema: unknown, defs: Record<string, unknown> = {}, seen: ReadonlySet<string> = new Set(), depth = 0): Record<string, unknown> {
-  if (depth > 8 || !schema || typeof schema !== "object") return { type: "object" };
+function sanitizeSchema(schema: unknown, defs: Record<string, unknown> = {}, seen: ReadonlySet<string> = new Set(), refDepth = 0): Record<string, unknown> {
+  if (refDepth > 60 || !schema || typeof schema !== "object") return { type: "object" };
   const s = schema as Record<string, unknown>;
   if (s.$defs && typeof s.$defs === "object") defs = { ...defs, ...(s.$defs as Record<string, unknown>) };
 
   if (typeof s.$ref === "string") {
     const key = s.$ref.split("/").pop() ?? "";
     if (seen.has(key) || !(key in defs)) return { type: "object" };
-    return sanitizeSchema(defs[key], defs, new Set([...seen, key]), depth + 1);
+    return sanitizeSchema(defs[key], defs, new Set([...seen, key]), refDepth + 1);
   }
 
   const out: Record<string, unknown> = {};
@@ -99,11 +105,11 @@ function sanitizeSchema(schema: unknown, defs: Record<string, unknown> = {}, see
   if ("const" in s) out.enum = [s.const]; // Gemini's schema has no `const`; a one-value enum is equivalent.
   if (Array.isArray(s.required)) out.required = s.required;
   const variants = [...(Array.isArray(s.anyOf) ? s.anyOf : []), ...(Array.isArray(s.oneOf) ? s.oneOf : [])];
-  if (variants.length) out.anyOf = variants.map(v => sanitizeSchema(v, defs, seen, depth + 1));
+  if (variants.length) out.anyOf = variants.map(v => sanitizeSchema(v, defs, seen, refDepth));
   if (s.properties && typeof s.properties === "object") {
-    out.properties = Object.fromEntries(Object.entries(s.properties as Record<string, unknown>).map(([k, v]) => [k, sanitizeSchema(v, defs, seen, depth + 1)]));
+    out.properties = Object.fromEntries(Object.entries(s.properties as Record<string, unknown>).map(([k, v]) => [k, sanitizeSchema(v, defs, seen, refDepth)]));
   }
-  if (s.items) out.items = sanitizeSchema(s.items, defs, seen, depth + 1);
+  if (s.items) out.items = sanitizeSchema(s.items, defs, seen, refDepth);
   if (!out.type && !out.anyOf && !out.enum) out.type = "object";
   return out;
 }
