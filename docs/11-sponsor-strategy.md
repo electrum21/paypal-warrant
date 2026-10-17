@@ -9,7 +9,6 @@ Devpost "Prizes" and each sponsor's details page before submitting.
 |---|---|---|---|---|
 | **AG Grid** | $5k / $2k / $1k x3 | **AG Studio**: custom widgets, theming, layout, the Studio Agent Framework. "Not just AG Grid on its own" | Library loaded but **never instantiated**; the docs said it was in use | Real grid on `/admin`; a Studio dashboard with theme, custom widget and agent scaffold |
 | **Channel3** | $1,500 (one winner) | "Search, product enrichment, or recommendations" | Search only; results relabeled with the category the *buyer asked for* | Search, enrichment (verifies what was bought against Channel3's own data), and recommendations (in-mandate alternatives after a refusal) |
-| APIMatic | $1k x3 + subscriptions | Using APIMatic output (SDKs, context plugins) | `openapi.yaml` existed but was never put through APIMatic | `openapi.yaml` covers the new routes; **generating a client is still to do** |
 | Render | $1k / $750 / $500 credits | A deployed, working project | `render.yaml` written, never deployed | **Deployed and live** at `warrant-9baj.onrender.com`; `/health` confirms `webhookVerification: true` with the PayPal webhook registered against it |
 | Bryntum | $1k x3 | Gantt / Scheduler / Calendar | Not used | Not used (idea below) |
 | Elastic, Zapier | No cash prize listed; tools and judges | A multi-step agent using retrieval (Elastic); automation/MCP (Zapier) | Log search; one-way webhook | Retrieval the agent uses; **the full two-way Zapier loop confirmed live** (proposal → Catch Hook, and evidence_requested → Zap posts delivery evidence back → proposal flips from escalate_to_human to contest) against the Render deployment |
@@ -58,7 +57,6 @@ way to move money or approve a response. So:
 | Zapier against its live service | **Full two-way loop confirmed**: proposal notifications and the evidence-request callback, both against the live Render deployment; see docs/03 K |
 | Elastic against its live service | Run multiple times against the live deployment. Finding: `/api/agent-events/search` only reliably matches exact IDs/tool names, not natural language; `/api/precedents`'s relevance ranking is unverified with only one case indexed |
 | Render deployment, live webhook | **Done.** Live at `warrant-9baj.onrender.com`; a real sandbox dispute (`PP-R-VHE-10193234`) reached it and produced a correct `contest` proposal with no manual import (see K in docs/03) |
-| APIMatic generation | Not done |
 
 ## Do next, in order
 
@@ -68,9 +66,8 @@ way to move money or approve a response. So:
 4. Build the demo layout in Studio and export its state so the page opens pre-built.
 5. ~~Deploy to Render; confirm the live webhook~~ **Done** — live at `warrant-9baj.onrender.com`; a real sandbox dispute reached `/webhooks/paypal` and produced a correct proposal with no manual import.
 6. ~~Make the Zap: Catch Hook -> carrier lookup -> Webhooks POST to `callbackUrl`~~ **Done, full loop.** A fresh Catch Hook received both `proposal_updated` and `evidence_requested` events from the live deployment, and the Zap's own Webhooks-by-Zapier step posted delivery evidence back, flipping the proposal from `escalate_to_human` to `contest`.
-7. Run APIMatic on `openapi.yaml` and use the generated client in the buyer agent.
-8. Enable `PAYPAL_MCP_ENABLED=true` in a sandbox environment and verify the Studio analyst can retrieve a dispute without changing it.
-9. Record the demo around one story: an agent buys a "running shoe" that Channel3 knows is a phone ->
+7. Enable `PAYPAL_MCP_ENABLED=true` in a sandbox environment and verify the Studio analyst can retrieve a dispute without changing it.
+8. Record the demo around one story: an agent buys a "running shoe" that Channel3 knows is a phone ->
    Warrant refuses it live (autonomous) or proposes accepting the claim -> the Studio dashboard shows that
    agent's dispute rate climbing.
 

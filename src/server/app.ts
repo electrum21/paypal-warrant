@@ -126,7 +126,7 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
     res.json({ ok: true, webhookVerification: Boolean(cfg.PAYPAL_WEBHOOK_ID), llm: Boolean(deps.llm), admin: Boolean(cfg.ADMIN_TOKEN),
       paypalLogin: loginConfigured,
       integrations: { channel3: Boolean(cfg.CHANNEL3_URL && cfg.CHANNEL3_API_KEY), elastic: Boolean(cfg.ELASTIC_URL && cfg.ELASTIC_API_KEY),
-        zapier: Boolean(cfg.ZAPIER_WEBHOOK_URL), agGrid: true, agStudio: existsSync(fileURLToPath(new URL("../../web/dist", import.meta.url))), studioAgent: Boolean(cfg.STUDIO_LLM_API_KEY), paypalMcp: cfg.PAYPAL_MCP_ENABLED, postman: true, apimatic: true } });
+        zapier: Boolean(cfg.ZAPIER_WEBHOOK_URL), agGrid: true, agStudio: existsSync(fileURLToPath(new URL("../../web/dist", import.meta.url))), studioAgent: Boolean(cfg.STUDIO_LLM_API_KEY), paypalMcp: cfg.PAYPAL_MCP_ENABLED, postman: true } });
   });
 
   app.get("/auth/paypal/start", (_req, res) => {

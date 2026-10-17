@@ -55,7 +55,7 @@ Optional sponsor integrations:
 - Zapier: proposal notifications and an evidence loop that brings delivery proof back
 - PayPal's official sandbox MCP server can optionally provide read-only dispute and catalog context to the Studio analyst (`PAYPAL_MCP_ENABLED=true`)
 - Render deployment with persistent SQLite storage
-- Postman collection and APIMatic-ready `openapi.yaml`
+- Postman collection and `openapi.yaml` describing the HTTP API
 
 ## Flow
 1. Buyer agent `POST /api/checkout` with the **user-signed mandate** and an **agent-signed cart** (the exact purchase). Warrant verifies both signatures against the registered user and agent keys, checks the cart is bound to the mandate and matches the purchase, accepts each cart once, records findings, and creates the PayPal order.

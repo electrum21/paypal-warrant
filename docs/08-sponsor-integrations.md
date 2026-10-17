@@ -81,8 +81,8 @@ approval screen.
 `/webhooks/paypal`, which has so far only been exercised locally. Set the PayPal credentials,
 `APP_URL`, `ADMIN_TOKEN` and webhook ID in the dashboard.
 
-## Postman and APIMatic
+## Postman
 
 `postman_collection.json` and `openapi.yaml` describe the HTTP API. The new routes
 (`/api/disputes/{id}/evidence`, `/api/precedents`, `/api/analytics/datasets`) are in
-`openapi.yaml`. Import it into APIMatic to generate a typed client for buyer agents.
+`openapi.yaml`.
