@@ -121,7 +121,7 @@ Verified against the sandbox on 4 October 2026:
 | `make-offer` (partial refund) | **Not offered** for this dispute type and stage. Never exercised |
 | `adjudicate` (sandbox settle) | **Not offered** to the merchant account (no link; `ACTION_NOT_ALLOWED_IN_CURRENT_DISPUTE_STATE`). Cause unconfirmed |
 | Webhook receiver + `verify-webhook-signature` | **Run live.** `CUSTOMER.DISPUTE.CREATED` reached `warrant-9baj.onrender.com/webhooks/paypal`, verified, and triggered `processDispute` automatically |
-| PayPal Agent Toolkit / MCP server | Optional Studio integration: PayPal sandbox MCP read tools are allow-listed and approval-gated. **Run live** (`npm run smoke:gemini-studio-agent`) against the real sandbox MCP server, through a Gemini-backed bridge (no OpenAI account needed) - see §8 of `docs/08-sponsor-integrations.md` |
+| PayPal Agent Toolkit / MCP server | Optional Studio integration: PayPal sandbox MCP read tools are allow-listed and approval-gated. **Run live** (`npm run smoke:gemini-studio-agent`) against the real sandbox MCP server, through a Gemini-backed bridge (no OpenAI account needed) - see §8 of `docs/05-sponsor-integrations.md` |
 
 The client is hard-pinned to `https://api-m.sandbox.paypal.com`; there is no production switch. Every write sends a `PayPal-Request-Id`; dispute submissions use a stable key (`warrant-<disputeId>-<action>`) so retries cannot double-submit.
 
@@ -132,9 +132,9 @@ The client is hard-pinned to `https://api-m.sandbox.paypal.com`; there is no pro
 | Channel3 | **Search, verification, and recommendations.** `buy-request` searches real products (`POST /v1/search`, `x-api-key`). The demo store lists the cheapest in-budget offer as its own item and keeps the retailer in the description. A checkout refused for being outside the mandate gets in-mandate alternatives from the same search | **Run live, four queries.** Real products selected across shoes, boots and earbuds; two runs show the enrichment check catching a declared category that undersold what Channel3 says was really bought |
 | Elastic | Merchant agent's investigation events are indexed and searchable at `/api/agent-events/search`; past cases at `/api/precedents` | **Run live, several queries.** Reliable for exact IDs/tool names, not for natural language over event content; `/api/precedents` relevance is unverified with only one case indexed so far |
 | Zapier | A `proposal_ready`/`proposal_updated`/`evidence_requested` message is sent to a Catch Hook; the Zap can POST delivery evidence back to re-run the proposal | **Run live, full loop.** A `MERCHANDISE_OR_SERVICE_NOT_RECEIVED` dispute triggered `escalate_to_human` and `evidence_requested`; the Zap posted evidence back and the proposal flipped to `contest` |
-| AG Grid (Community) | Dispute queue on the approval screen (`/admin`), a real grid with sorting, filtering and selection. Pinned to major 33 from a CDN | **Fixed.** Earlier versions loaded the library but never created a grid; the queue was hand-built buttons. Verified in a browser against a stubbed grid and API; not yet against the real CDN build |
+| AG Grid (Community) | Dispute queue on the approval screen (`/admin`), a real grid with sorting, filtering and selection. Pinned to major 33 from a CDN | **Verified against the real CDN build**, including live filtering and sorting, in the demo recording |
 | AG Studio | Merchant analytics dashboard at `/studio` (custom Mandate gauge widget, PayPal theme, optional agent) | Production bundle builds successfully. **Agent run live in the real browser UI**, not just the backend: asked to chart disputes by recommended action, it read the schema, ran a query, added a widget, and summarised the result correctly. Live deployment validation (on Render) remains |
-| Render, Postman, OpenAPI | `render.yaml`, `postman_collection.json`, `openapi.yaml` | OpenAPI/Postman definitions updated; Render deployment and generated-client validation remain |
+| Render, Postman, OpenAPI | `render.yaml`, `postman_collection.json`, `openapi.yaml` | **Deployed.** Live at `warrant-9baj.onrender.com` with a persistent disk; OpenAPI/Postman definitions describe the full HTTP API |
 
 ## 9. Data model (SQLite via Node's built-in `node:sqlite`)
 
@@ -159,7 +159,7 @@ Dispute `workflow_state`: `PROPOSED` → `APPROVED` → `SUBMITTED`, or `FAILED`
 - **The purchase category is declared by the agent.** When the signed cart carries a Channel3 `productId` and Channel3 is configured, Warrant now checks Channel3's own category for that product (`src/integrations/channel3.ts`) and treats a confirmed out-of-mandate category as a blocking finding. Carts without a `productId`, or categories Warrant cannot map, are still unverified.
 - `/api/catalog/search` is unauthenticated and not rate limited, so anyone who can reach the server can spend the Channel3 quota. The admin page loads AG Grid from a CDN (major version pinned, not an exact version).
 - Autonomous payment (`mode: "autonomous"`) charges a saved PayPal account with no click. The Vault connection and complete browser-driven checkout were run on the sandbox (`docs/04-autonomous-purchase-spike.md`). The vault token can charge any amount, so the mandate check is the only guard, and it is stored unencrypted in SQLite. The default `approve` mode still uses the click.
-- **No cumulative limit.** Each purchase needs its own signed cart, but one mandate can still back several purchases, each checked only against the per-purchase maximum. The mandate `nonce` is not tracked.
+- A mandate's cumulative total (`maxTotalAmountCents`) and purchase count (`maxPurchases`) **are** checked and enforced, atomically, against the mandate's own usage (`src/mandate/check.ts`'s `checkCumulative`). The mandate `nonce` itself is not tracked separately from that usage count.
 - **Revocation** is checked but there is no endpoint for a user to revoke; only the helper `revokeMandate` exists.
 - Admin token can be passed in the URL query string, which can end up in logs. Fine for a sandbox demo only.
 - Webhook verification re-serializes the parsed JSON rather than forwarding the raw body; likely fine, but confirm in the sandbox.
@@ -177,23 +177,27 @@ Dispute `workflow_state`: `PROPOSED` → `APPROVED` → `SUBMITTED`, or `FAILED`
 
 Full results are in `docs/03-testing-and-usage.md`, part K.
 
-## 12. What's left before submission
+## 12. Submission materials
 
 Submissions close **12 November 2026** (Devpost shows 12:00pm PST; confirm in the official rules).
-What remains is content, not code: record the demo video (shot list in `docs/11-sponsor-strategy.md`)
-and write the Devpost text description. Everything in the "Do next" list that doc used to track —
-Render deployment, the Zapier loop, the Studio agent on Gemini, the pre-built dashboard — is done.
+The demo video is recorded and published: see `README.md`'s Live demo section for the link. The Devpost
+submission text is written in `DEVPOST.md`, ready to paste into the submission form.
 
 **Ideas to deepen the AI role further, if there's time (not required):** an agent that decides what
 supporting evidence to request from the merchant for non-"unauthorized" reasons; an LLM-assisted triage
 that flags suspicious mandates for human review (still advisory); an AI-generated plain-language
 summary of the user's original instruction for the evidence note.
 
-## 13. Suggested 3-minute demo
+## 13. What the demo video shows
 
-1. State the problem in one sentence (agents buy; disputes follow; merchants have no proof).
-2. Show the signed mandate and the checkout.
-3. Raise a dispute. Show the proposal on `/admin`: the over-limit bar, the findings, the AI explanation, the editable note.
-4. Approve. Show the PayPal-side result (case under review with the note; or the refund for an accept).
-5. Show the contrast cases (within limit → contest; wrong category → accept). For the over-limit case, show the blocked proposal and say why: PayPal offers only a full refund at this stage, so Warrant tells the merchant instead of sending something that would fail. Use the offline demo output if the sandbox is slow.
-6. Close on the rule: the LLM never decides, and the merchant always approves.
+1. The buyer authorizes a signed spending mandate and the agent checks out autonomously through
+   PayPal's real sandbox.
+2. The buyer disputes the charge directly on PayPal (Unauthorized activity), creating a real sandbox
+   case.
+3. Warrant's webhook picks up the dispute automatically and proposes a response.
+4. The merchant reviews the proposal on `/admin` — the finding, the AI-drafted note, the full agent
+   trace — and submits it.
+5. PayPal's own case page confirms it: the case moves to "Under review" with the evidence Warrant
+   submitted.
+6. The Studio dashboard shows the resulting dispute data across every buyer agent.
+7. A closing summary covers the real PayPal infrastructure used and the four partner integrations.

@@ -50,7 +50,7 @@ Only the payment step changes. Mandate and cart checks stay as they are.
   - On success the order is recorded with its capture id straight away (no return page needed), so disputes can match it.
 - Demo: `npm run demo -- buy-auto <within|over|category>`. `over` and `category` should be refused with the findings shown; `within` should pay.
 
-**Still open before calling this safe:** the vault token lets the merchant charge any amount, so the mandate check is the only guard. One mandate can still back several purchases (no cumulative limit), and the token is stored unencrypted in SQLite. Both are in the trust-model list in `docs/01-project-overview.md`.
+**Still open before calling this safe:** the vault token lets the merchant charge any amount, so the mandate check (including the cumulative total and purchase-count caps below) is the only guard, and the token is stored unencrypted in SQLite. Both are in the trust-model list in `docs/01-project-overview.md`.
 
 ## What was added
 
@@ -125,19 +125,22 @@ Known limits:
 - A signed request is replay-protected by nonce and a 5-minute window; there is no per-user rate limit on these routes.
 - The admin token can stop but not resume, but it can still stop any user's agent. That is a deliberate merchant-safety
   capability and also a denial-of-service lever if the token leaks.
-- `openapi.yaml` and the Postman collection include these routes; generated-client validation remains.
+- `openapi.yaml` and the Postman collection include these routes.
 
 
-## User page prototype (`/me`)
+## User page (`/user`, also served at `/me`)
 
 A single page, served by the Warrant server, where a person signs in their own browser instead of using the demo scripts:
-create a key, register it, sign a spending rule (per-purchase cap, optional total cap and purchase count, category,
-validity), and pause / resume / cancel a rule / cancel the saved payment. Only signatures leave the browser.
+sign in with PayPal, create a key, register it, sign a spending rule (per-purchase cap, optional total cap and purchase
+count, category, validity), connect a PayPal Vault payment method, and authorize the agent to shop autonomously — the
+page itself runs the full buyer-agent flow (catalog search, cart signing, checkout) with no copy-paste step. A Purchases
+panel shows the signed purchases that came back. Only signatures leave the browser.
 
 What was checked: the page's real signing code produces spending rules and stop requests that the server's own
-verification accepts (`src/server/userPage.test.ts`), and the page's buttons were clicked through in headless Chromium
-with the API faked (each button sends the right signed request to the right route). **Not checked:** the page against a
-live server, other browsers, or phones.
+verification accepts (`src/server/userPage.test.ts`); the page's buttons were clicked through in headless Chromium with
+the API faked (each button sends the right signed request to the right route); and, separately, the full flow was run
+against the real live server — PayPal sign-in, Vault connection, and a complete autonomous checkout producing a real
+PayPal order and capture. **Not checked:** other browsers or phones.
 
 Limits:
 - **Prototype key storage.** The private key sits in the browser's local storage (as a JWK). Anyone with access to the
@@ -147,5 +150,3 @@ Limits:
 - The user controls page now self-registers the public key through `/api/me/public-key`, so an end user never
   receives or enters the merchant admin token. This is a demo bootstrap; production should bind the key to an
   authenticated account or passkey. The admin-protected `/api/users` route remains for backend operations.
-- The page cannot show purchases or remaining budget: there is no user-facing read route yet.
-- The agent still receives the signed rule by copy and paste.

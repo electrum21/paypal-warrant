@@ -27,7 +27,7 @@ That token (`JUDGE_TOKEN`) is a disposable credential separate from the maintain
 set specifically for judging and rotated/removed afterward. Prefer to run your own copy instead? See
 `docs/03-testing-and-usage.md`.
 
-Demo video: *(link added before submission — see `docs/11-sponsor-strategy.md` for the planned shot list)*
+**Demo video:** https://youtu.be/0jTdyas14GA
 
 ## What's real here
 
@@ -132,7 +132,7 @@ Every one of these is optional — the offline demo and full test suite need non
 - **Postman / OpenAPI** — `postman_collection.json` and `openapi.yaml` describe the full HTTP API.
 
 Full detail on what each one changes about a dispute outcome, with exact verification notes:
-`docs/08-sponsor-integrations.md`.
+`docs/05-sponsor-integrations.md`.
 
 ## Layout
 
@@ -155,9 +155,8 @@ Full detail on what each one changes about a dispute outcome, with exact verific
 - Mandate descriptions are third-party text, always shown to the LLM as quoted data and rendered as
   plain text only.
 - This is not legal advice, and a signed mandate is evidence, not a guarantee of any dispute outcome.
-- Full list of known gaps and what's deliberately not defended yet (no cumulative-spend tracking,
-  category is agent-declared unless Channel3 confirms it, demo key custody, and more): section 10 of
-  `docs/01-project-overview.md`.
+- Full list of known gaps and what's deliberately not defended yet (category is agent-declared unless
+  Channel3 confirms it, demo key custody, and more): section 10 of `docs/01-project-overview.md`.
 
 ## Docs
 
@@ -165,6 +164,6 @@ Full detail on what each one changes about a dispute outcome, with exact verific
 - `docs/02-plain-english-summary.md` — the idea with no jargon
 - `docs/03-testing-and-usage.md` — step-by-step setup, every env var, troubleshooting, and the full
   verification log
-- `docs/08-sponsor-integrations.md` — what each sponsor integration does and how it was verified
+- `docs/05-sponsor-integrations.md` — what each sponsor integration does and how it was verified
 
 MIT licensed.

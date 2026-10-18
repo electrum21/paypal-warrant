@@ -218,7 +218,7 @@ When an LLM writes the explanation, the code first prepends an exact block taken
 
 Set `ENFORCE_MANDATE=true` in `.env` and restart. Then `npm run demo -- buy over` fails with `Checkout failed (422)` and the finding `AMOUNT_EXCEEDS_MAX`, and no PayPal order is created. This is how a merchant avoids the partial-refund problem altogether. Set it back to `false` afterwards so the other demos keep working.
 
-## G. Webhooks (needs a public URL) — NOT YET RUN
+## G. Webhooks (needs a public URL) — verified live
 
 1. Deploy the server (Render is suggested). **Free-tier disks are ephemeral:** attach a persistent disk and point `DATABASE_PATH` at it, or the database resets on each deploy. Set all `.env` values as environment variables, and set `APP_URL` to the public address.
 2. In the PayPal sandbox app, add a webhook to `https://YOUR-HOST/webhooks/paypal`, subscribing to at least the dispute events (e.g. `CUSTOMER.DISPUTE.CREATED`) and payment capture events. Copy the **Webhook ID** into `PAYPAL_WEBHOOK_ID` and redeploy.
@@ -338,8 +338,9 @@ Merchant-facing (header `x-admin-token`, or `?token=` on the page):
   - **Not yet observed:** which event types fire on dispute *update* and *resolution* (only `CREATED` has been exercised so far).
 - [x] The complete browser-driven `/api/checkout` autonomous purchase path against live PayPal.
 - [x] PayPal's official MCP server was investigated. Studio can opt in to the sandbox read tools
-  `list_disputes`, `get_dispute`, `list_product`, and `show_product_details`; live MCP invocation
-  still needs an account-backed test.
+  `list_disputes`, `get_dispute`, `list_product`, and `show_product_details`. Live MCP invocation is
+  confirmed: `npm run smoke:gemini-studio-agent` ran it against the real sandbox MCP server with no
+  OpenAI account needed (see `docs/05-sponsor-integrations.md`'s PayPal MCP section for full detail).
 
 ### Sponsor integrations (observed 5 Oct 2026)
 
