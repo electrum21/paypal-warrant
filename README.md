@@ -31,6 +31,8 @@ Prefer to run your own copy instead? See `docs/03-testing-and-usage.md`.
 
 **Demo video:** https://youtu.be/FAMkX6030SE
 
+https://github.com/electrum21/paypal-warrant/raw/master/warrant-demo.mp4
+
 ## What's real here
 
 - **233+ automated tests**, plus live runs against the real PayPal sandbox: order creation and capture,
