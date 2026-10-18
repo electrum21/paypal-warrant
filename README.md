@@ -31,7 +31,10 @@ Prefer to run your own copy instead? See `docs/03-testing-and-usage.md`.
 
 **Demo video:** https://youtu.be/FAMkX6030SE
 
-https://github.com/electrum21/paypal-warrant/raw/master/warrant-demo.mp4
+
+https://github.com/user-attachments/assets/4edf31d9-f7df-4e50-a40c-a0344bb7f7b8
+
+
 
 ## What's real here
 
