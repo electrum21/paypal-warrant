@@ -84,7 +84,8 @@ npm run dev              # server on :8787 (webhooks, checkout, /admin, /studio)
 Set `ADMIN_TOKEN` in `.env`, then open `http://localhost:8787/admin?token=<ADMIN_TOKEN>`.
 Set `GEMINI_API_KEY` or `ANTHROPIC_API_KEY` for real LLM explanations (optional; a template is used
 without one). Without a public webhook URL you can still test everything: import a sandbox dispute by
-its ID on the admin page.
+its ID on the admin page. Want to try the `/user` sign-in flow locally too? See
+`docs/07-sso-quick-run-guide.md` (needs a public tunnel, e.g. ngrok, for PayPal's OAuth callback).
 
 ```
 npm run demo:offline                                  # whole story, fake PayPal, no credentials
