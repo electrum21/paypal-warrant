@@ -15,8 +15,8 @@ merchant approves; only then does anything reach PayPal.**
 
 ## Live demo
 
-Deployed on PayPal sandbox only — no real money ever moves. **Use the direct links below, not the bare
-domain:** the root URL redirects to the dashboard without a token and shows an error instead of data.
+**Start here: https://warrant-9baj.onrender.com** — a single landing page linking every other page below,
+with the token already filled in. PayPal sandbox only; no real money ever moves.
 
 | Page | What you'll see |
 |---|---|

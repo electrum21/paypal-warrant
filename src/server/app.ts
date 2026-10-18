@@ -18,6 +18,7 @@ import { verifyAuthorization } from "../mandate/authorize.js";
 import { isEd25519PublicKeyPem } from "../mandate/sign.js";
 import { cartAlreadyUsed, getAgentEvent, getAgentKey, getAgentOwner, getAgentPause, getMandateUsage, getPaymentAuthorization, getRevocation, getUserKey, linkPaymentToken, listMandateUses, listUserOrders, markCaptured, markMandateUse, recordControlEvent, recordKeyChange, recordOrder, registerAgentKey, registerUserKey, reserveMandateUse, revokePaymentAuthorization, saveMandate, saveProductCheck, toIso, type UseStatus } from "../repo.js";
 import { adminPageHtml } from "./adminPage.js";
+import { landingPageHtml } from "./landingPage.js";
 import { productFindings, searchChannel3, suggestAlternatives, verifyProduct } from "../integrations/channel3.js";
 import { caseSummary, findSimilarCases, indexAgentEvent, indexDisputeCase, outcomeOf, searchAgentEvents, type DisputeCase } from "../integrations/elastic.js";
 import { buildZapierEvent, notifyZapier } from "../integrations/zapier.js";
@@ -124,7 +125,7 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
     next();
   };
 
-  app.get("/", (_req, res) => res.redirect("/studio/"));
+  app.get("/", (_req, res) => res.type("html").send(landingPageHtml(cfg.JUDGE_TOKEN || cfg.ADMIN_TOKEN)));
 
   app.get("/health", (_req, res) => {
     res.json({ ok: true, webhookVerification: Boolean(cfg.PAYPAL_WEBHOOK_ID), llm: Boolean(deps.llm), admin: Boolean(cfg.ADMIN_TOKEN || cfg.JUDGE_TOKEN),
