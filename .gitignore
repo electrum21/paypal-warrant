@@ -4,4 +4,6 @@ node_modules
 *.db-journal
 .demo-agent.json
 .demo-user.json
+DEVPOST.md
 web/dist
+scripts/demo-recording/
