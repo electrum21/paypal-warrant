@@ -29,7 +29,7 @@ The `?token=...` on the merchant and Studio links is `JUDGE_TOKEN`, a disposable
 from the maintainer's own `ADMIN_TOKEN`, set specifically for judging and rotated/removed afterward.
 Prefer to run your own copy instead? See `docs/03-testing-and-usage.md`.
 
-**Demo video:** https://youtu.be/nUGMLLayuj8
+**Demo video:** https://youtu.be/FAMkX6030SE
 
 ## What's real here
 

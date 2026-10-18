@@ -64,7 +64,7 @@ footer{text-align:center;color:var(--mute);font-size:13px;padding:0 20px 40px}
   <div class="links">
     <a href="/health">/health — feature flags for this deployment</a>
     <a href="https://github.com/electrum21/paypal-warrant">Source on GitHub</a>
-    <a href="https://youtu.be/nUGMLLayuj8">Demo video</a>
+    <a href="https://youtu.be/FAMkX6030SE">Demo video</a>
   </div>
 </main>
 <footer>PayPal sandbox only — no real money ever moves.</footer>
