@@ -19,7 +19,7 @@ header{background:linear-gradient(135deg,var(--paypal-blue),#001a4d);color:#fff;
 .eyebrow{letter-spacing:.14em;text-transform:uppercase;font-size:12px;color:var(--paypal-gold);font-weight:700}
 h1{margin:10px 0 6px;font-size:36px}
 header p{margin:0;color:#c9d6ef;font-size:16px}
-main{max-width:860px;margin:-20px auto 48px;padding:0 20px}
+main{max-width:860px;margin:0 auto 48px;padding:32px 20px 0}
 .cards{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
 a.card{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;text-decoration:none;color:inherit;box-shadow:0 1px 3px rgba(20,33,61,.08);transition:box-shadow .15s,transform .15s}
 a.card:hover{box-shadow:0 8px 24px rgba(20,33,61,.14);transform:translateY(-2px)}
