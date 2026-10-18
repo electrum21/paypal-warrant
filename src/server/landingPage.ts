@@ -21,10 +21,10 @@ h1{margin:10px 0 6px;font-size:36px}
 header p{margin:0;color:#c9d6ef;font-size:16px}
 main{max-width:860px;margin:-20px auto 48px;padding:0 20px}
 .cards{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
-a.card{display:block;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;text-decoration:none;color:inherit;box-shadow:0 1px 3px rgba(20,33,61,.08);transition:box-shadow .15s,transform .15s}
+a.card{display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;text-decoration:none;color:inherit;box-shadow:0 1px 3px rgba(20,33,61,.08);transition:box-shadow .15s,transform .15s}
 a.card:hover{box-shadow:0 8px 24px rgba(20,33,61,.14);transform:translateY(-2px)}
 .tag{display:inline-block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--paypal-sky);margin-bottom:8px}
-a.card h2{margin:0 0 8px;font-size:20px;color:var(--ink)}
+a.card h2{margin:0 0 8px;font-size:20px;line-height:1.25;color:var(--ink);min-height:2.5em}
 a.card p{margin:0;color:var(--mute);font-size:14px}
 .row{display:flex;justify-content:space-between;align-items:center;margin:40px 0 18px}
 .row h3{margin:0;font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
