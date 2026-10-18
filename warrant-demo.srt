@@ -1,0 +1,215 @@
+1
+00:00:00,000 --> 00:00:03,072
+AI shopping agents are starting to buy things
+
+2
+00:00:03,072 --> 00:00:06,144
+on people's behalf, and when something goes wrong,
+
+3
+00:00:06,144 --> 00:00:08,064
+they file real PayPal disputes.
+
+4
+00:00:08,064 --> 00:00:11,904
+Warrant handles that, end to end, on live PayPal sandbox.
+
+5
+00:00:11,904 --> 00:00:13,395
+Now the real flow.
+
+6
+00:00:13,395 --> 00:00:15,633
+An agent checks out through Warrant,
+
+7
+00:00:15,633 --> 00:00:17,870
+PayPal creates a real sandbox order,
+
+8
+00:00:17,870 --> 00:00:21,598
+and the buyer approves payment, just like a real purchase.
+
+9
+00:00:21,598 --> 00:00:22,344
+Order captured.
+
+10
+00:00:22,784 --> 00:00:26,795
+Here's the buyer filing a real dispute on PayPal sandbox.
+
+11
+00:00:26,795 --> 00:00:28,800
+Under Unauthorized activity, they choose:
+
+12
+00:00:28,800 --> 00:00:32,811
+I suspect my account is being used by someone else,
+
+13
+00:00:32,811 --> 00:00:37,223
+the same reason a real victim of account takeover would pick.
+
+14
+00:00:37,223 --> 00:00:39,629
+They describe what happened and submit.
+
+15
+00:00:39,629 --> 00:00:43,640
+PayPal confirms it immediately: a real case, filed, on record.
+
+16
+00:00:50,384 --> 00:00:54,203
+Warrant's webhook picks this up the moment PayPal fires it,
+
+17
+00:00:54,203 --> 00:00:56,495
+no one imports anything by hand.
+
+18
+00:00:56,495 --> 00:00:59,168
+It proposes a verdict in seconds: contest.
+
+19
+00:00:59,168 --> 00:01:02,275
+Warrant shows exactly why -- the signed mandate,
+
+20
+00:01:02,275 --> 00:01:04,217
+the evidence, the reasoning --
+
+21
+00:01:04,217 --> 00:01:07,712
+and submits the contest straight back to PayPal's API.
+
+22
+00:01:07,712 --> 00:01:09,176
+And here's the proof:
+
+23
+00:01:09,176 --> 00:01:12,104
+PayPal's own case page updates to Under review
+
+24
+00:01:12,104 --> 00:01:14,300
+with the evidence Warrant just submitted.
+
+25
+00:01:14,300 --> 00:01:17,960
+This isn't mocked -- it's a real dispute, really contested.
+
+26
+00:01:17,960 --> 00:01:20,927
+And it tracks all of this over time:
+
+27
+00:01:20,927 --> 00:01:23,153
+which agents, which products, which outcomes.
+
+28
+00:01:23,153 --> 00:01:26,120
+Every piece here is real. This is Warrant.
+
+29
+00:01:27,960 --> 00:01:31,589
+Every step here runs on real PayPal infrastructure:
+
+30
+00:01:31,589 --> 00:01:34,311
+sandbox checkout and capture, verified webhooks,
+
+31
+00:01:34,311 --> 00:01:38,395
+the real disputes API for contesting or accepting claims,
+
+32
+00:01:38,395 --> 00:01:42,024
+and PayPal Login and Vault for autonomous charges.
+
+33
+00:01:42,024 --> 00:01:44,688
+Four partner integrations make it work:
+
+34
+00:01:44,688 --> 00:01:47,352
+Channel3 verifies what was actually bought,
+
+35
+00:01:47,352 --> 00:01:49,572
+Elastic surfaces similar past cases,
+
+36
+00:01:49,572 --> 00:01:51,792
+Zapier automates the evidence loop,
+
+37
+00:01:51,792 --> 00:01:57,120
+and AG Grid plus AG Studio give merchants a real analytics workbench.
+
+38
+00:01:57,120 --> 00:02:02,010
+That signature check isn't a flag in a database -- it's real.
+
+39
+00:02:02,010 --> 00:02:06,085
+Every mandate is signed with the buyer's own Ed25519 key,
+
+40
+00:02:06,085 --> 00:02:09,752
+over canonical JSON, and checked against their registered key
+
+41
+00:02:09,752 --> 00:02:11,789
+before anything is ever proposed.
+
+42
+00:02:11,789 --> 00:02:15,864
+A tampered mandate or a wrong key is rejected outright.
+
+43
+00:02:15,864 --> 00:02:18,168
+Gemini has no native MCP connector,
+
+44
+00:02:18,168 --> 00:02:20,472
+so we built one from scratch,
+
+45
+00:02:20,472 --> 00:02:24,312
+and it surfaced real bugs no unit test could catch:
+
+46
+00:02:24,312 --> 00:02:25,848
+an async adapter mismatch,
+
+47
+00:02:25,848 --> 00:02:27,768
+Gemini's own thought-signature replay requirement,
+
+48
+00:02:27,768 --> 00:02:31,608
+and a schema bug that silently flattened a discriminated-union tool.
+
+49
+00:02:31,608 --> 00:02:35,448
+All three only showed up in a live browser run.
+
+50
+00:02:35,448 --> 00:02:36,664
+That's Warrant's edge:
+
+51
+00:02:36,664 --> 00:02:39,906
+cryptographically signed spending limits an agent can't exceed,
+
+52
+00:02:39,906 --> 00:02:43,553
+dispute defense that reacts in seconds instead of days,
+
+53
+00:02:43,553 --> 00:02:45,579
+and full visibility for merchants,
+
+54
+00:02:45,579 --> 00:02:49,632
+built for a future where AI agents do the shopping.
