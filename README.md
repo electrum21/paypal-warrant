@@ -2,6 +2,18 @@
 
 **Dispute defense for merchants selling to AI shopping agents.**
 
+![License: MIT](https://img.shields.io/badge/license-MIT-blue)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178c6?logo=typescript&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-233%2B%20passing-brightgreen)
+![PayPal Sandbox](https://img.shields.io/badge/PayPal-Sandbox-003087?logo=paypal&logoColor=white)
+![Deployed on Render](https://img.shields.io/badge/deployed-Render-46E3B7?logo=render&logoColor=white)
+
+![Channel3](https://img.shields.io/badge/Channel3-integrated-6f42c1)
+![Elastic](https://img.shields.io/badge/Elastic-integrated-005571?logo=elastic&logoColor=white)
+![Zapier](https://img.shields.io/badge/Zapier-integrated-FF4A00?logo=zapier&logoColor=white)
+![AG Grid / AG Studio](https://img.shields.io/badge/AG%20Grid-Studio-E60012)
+![PayPal MCP](https://img.shields.io/badge/PayPal-MCP%20server-003087?logo=paypal&logoColor=white)
+
 AI agents are starting to buy things on people's behalf. When a buyer later tells PayPal "I never
 authorized this," the merchant is left holding a payment record and nothing else — no proof of what
 the user actually told their agent to do. Warrant fixes that: a buyer's agent presents a **signed
