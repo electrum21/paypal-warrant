@@ -15,17 +15,19 @@ merchant approves; only then does anything reach PayPal.**
 
 ## Live demo
 
-Deployed at **https://warrant-9baj.onrender.com** — PayPal sandbox only, no real money moves.
+Deployed on PayPal sandbox only — no real money ever moves. **Use the direct links below, not the bare
+domain:** the root URL redirects to the dashboard without a token and shows an error instead of data.
 
 | Page | What you'll see |
 |---|---|
-| [`/admin?token=7oi5q9Mi-3wkUg-iCUrDFm_3`](https://warrant-9baj.onrender.com/admin?token=7oi5q9Mi-3wkUg-iCUrDFm_3) | The merchant approval screen: a real dispute queue (AG Grid), the deterministic finding, the AI-drafted note, one click to approve or dismiss |
-| [`/studio?token=7oi5q9Mi-3wkUg-iCUrDFm_3`](https://warrant-9baj.onrender.com/studio?token=7oi5q9Mi-3wkUg-iCUrDFm_3) | An AG Studio analytics dashboard, pre-built with five charts, plus a Gemini-backed chat agent that can query the live data and build new ones on request |
-| `/health` | Feature flags — confirms what's actually turned on in this deployment |
+| [Buyer — `/user`](https://warrant-9baj.onrender.com/user) | Sign in with PayPal, set a spending permission, and watch the agent shop autonomously. No token needed |
+| [Merchant approval — `/admin?token=...`](https://warrant-9baj.onrender.com/admin?token=7oi5q9Mi-3wkUg-iCUrDFm_3) | A real dispute queue (AG Grid), the deterministic finding, the AI-drafted note, one click to approve or dismiss |
+| [Studio dashboard — `/studio?token=...`](https://warrant-9baj.onrender.com/studio?token=7oi5q9Mi-3wkUg-iCUrDFm_3) | An AG Studio analytics dashboard, pre-built with five charts, plus a Gemini-backed chat agent that can query the live data and build new ones on request |
+| [`/health`](https://warrant-9baj.onrender.com/health) | Feature flags — confirms what's actually turned on in this deployment |
 
-That token (`JUDGE_TOKEN`) is a disposable credential separate from the maintainer's own `ADMIN_TOKEN`,
-set specifically for judging and rotated/removed afterward. Prefer to run your own copy instead? See
-`docs/03-testing-and-usage.md`.
+The `?token=...` on the merchant and Studio links is `JUDGE_TOKEN`, a disposable credential separate
+from the maintainer's own `ADMIN_TOKEN`, set specifically for judging and rotated/removed afterward.
+Prefer to run your own copy instead? See `docs/03-testing-and-usage.md`.
 
 **Demo video:** https://youtu.be/0jTdyas14GA
 
