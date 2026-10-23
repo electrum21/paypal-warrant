@@ -22,12 +22,20 @@ pre{background:#10233f;color:#e8f1ff;padding:13px;border-radius:8px;overflow:aut
 .capabilities{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.capability{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#f8fbff}.capability b{display:block;color:var(--paypal-blue);font-size:13px}.capability small{display:block;margin-top:2px}.capability em{font-style:normal;font-size:11px;font-weight:700;color:var(--success)}.capability.off em{color:var(--muted)}
 .footer{text-align:center;color:var(--muted);font-size:12px;margin:24px 0 0}
 @media(max-width:560px){body{padding:0 14px 28px}header{margin-left:-14px;margin-right:-14px;padding-left:14px;padding-right:14px}.card{padding:15px}}
+.tour-backdrop{position:fixed;inset:0;z-index:9998}
+.tour-highlight{position:fixed;z-index:9999;border-radius:10px;box-shadow:0 0 0 4px var(--paypal-gold),0 0 0 9999px rgba(10,20,40,.6);transition:top .25s,left .25s,width .25s,height .25s;pointer-events:none}
+.tour-tip{position:fixed;z-index:10000;max-width:300px;background:#fff;border-radius:12px;box-shadow:0 10px 30px rgba(20,33,61,.3);padding:16px;opacity:0;transition:opacity .2s,top .25s,left .25s}
+.tour-tip h3{margin:0 0 6px;font-size:15px;color:var(--paypal-blue)}
+.tour-tip p{margin:0 0 12px;font-size:13px;color:var(--ink);line-height:1.5}
+.tour-nav{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tour-nav .tour-progress{font-size:11px;color:var(--muted)}
+.tour-tip button{margin:0 0 0 6px;padding:7px 12px;font-size:13px}
 </style></head><body>
 <header><div class="brand"><div class="brand-mark">W</div><div><div class="eyebrow">PayPal sandbox companion</div><h1>Warrant <small>Safe agent payments</small></h1></div></div></header>
-<div class="intro"><h2>Give your shopping agent a safe budget</h2><p>Tell your agent what it may buy and how much it may spend. Warrant checks every purchase against your permission before PayPal is charged.</p></div>
+<div class="intro"><h2>Give your shopping agent a safe budget</h2><p>Tell your agent what it may buy and how much it may spend. Warrant checks every purchase against your permission before PayPal is charged.</p><button id="startTour" class="plain" style="margin-top:10px">Take a 60-second tour</button></div>
 <div class="card warn"><b>How it works</b><p class="flow">You set the rules <span>→</span> Your agent shops <span>→</span> Warrant checks <span>→</span> PayPal pays</p><small>You stay in control. Pause the agent or cancel a permission at any time.</small></div>
 
-<div class="card"><h2><span>1</span>Sign in and connect this device</h2>
+<div class="card" id="cardSignIn"><h2><span>1</span>Sign in and connect this device</h2>
 <p id="authstate">Checking your PayPal sign-in...</p>
 <input id="userId" type="hidden">
 <button id="signIn" class="ok">Continue with PayPal</button>
@@ -37,7 +45,7 @@ pre{background:#10233f;color:#e8f1ff;padding:13px;border-radius:8px;overflow:aut
 <button id="connectPayment" class="ok" hidden>Connect PayPal payment method</button>
 <p id="paymentstate"><small></small></p></div>
 
-<div class="card"><h2><span>2</span>Set your shopping permission</h2>
+<div class="card" id="cardPermission"><h2><span>2</span>Set your shopping permission</h2>
 <label>What should your agent buy?</label><input id="desc" value="Buy one pair of trail running shoes">
 <div class="row"><div><label>Maximum per purchase ($)</label><input id="max" type="number" value="120" min="1"></div>
 <div><label>Total budget ($, optional)</label><input id="total" type="number" min="1" placeholder="Same as max"></div>
@@ -53,7 +61,7 @@ pre{background:#10233f;color:#e8f1ff;padding:13px;border-radius:8px;overflow:aut
 <button id="startShopping" class="start">Authorize and start shopping</button>
 <details class="technical"><summary>Technical details</summary><label>Signed authorization</label><textarea id="signed" rows="3" readonly placeholder="Your signed permission will appear here"></textarea></details></div>
 
-<div class="card safety"><h2><span>3</span>Safety</h2>
+<div class="card safety" id="cardSafety"><h2><span>3</span>Safety</h2>
 <p>Stop automatic purchases at any time. Payments already sent to PayPal are not reversed.</p>
 <p id="shoppingStatus" class="safety-status" role="status">Automatic shopping is allowed.</p>
 <button id="pause" class="stop">Stop automatic shopping</button>
@@ -65,10 +73,10 @@ pre{background:#10233f;color:#e8f1ff;padding:13px;border-radius:8px;overflow:aut
 <div class="row"><input id="mid" placeholder="Permission ID"><button id="revoke" class="stop" style="flex:0 0 auto">Cancel permission</button></div>
 </details></div>
 
-<div class="card"><h2>Pending approvals</h2><p><small>A purchase over your "ask me first" amount waits here instead of charging immediately.</small></p><div id="holds" class="orders"><small>Nothing pending.</small></div><button id="loadHolds" class="plain">Refresh pending approvals</button></div>
+<div class="card" id="cardHolds"><h2>Pending approvals</h2><p><small>A purchase over your "ask me first" amount waits here instead of charging immediately.</small></p><div id="holds" class="orders"><small>Nothing pending.</small></div><button id="loadHolds" class="plain">Refresh pending approvals</button></div>
 <div class="card"><h2>Activity</h2><pre id="log">Nothing yet.</pre></div>
 <div class="card"><h2>Agent capabilities</h2><p><small>These services make the agent more useful, observable, and accountable. They run behind the scenes while Warrant remains the payment safety layer.</small></p><div id="capabilities" class="capabilities"><div class="capability"><b>Channel3</b><small>Finds real products, and lets the merchant verify what was actually bought.</small><em>Checking...</em></div><div class="capability"><b>Elastic</b><small>Finds similar past disputes so the merchant sees how they ended.</small><em>Checking...</em></div><div class="capability"><b>Zapier</b><small>Alerts the merchant, and brings missing evidence such as delivery proof back to Warrant.</small><em>Checking...</em></div><div class="capability"><b>AG Grid</b><small>Gives the merchant a searchable dispute workbench.</small><em>Available in merchant view</em></div></div></div>
-<div class="card"><h2>Purchases</h2><p><small>Signed purchases appear here after your agent submits checkout.</small></p><div id="orders" class="orders"><small>No purchases loaded.</small></div><button id="loadOrders" class="plain">Refresh purchases</button></div>
+<div class="card" id="cardOrders"><h2>Purchases</h2><p><small>Signed purchases appear here after your agent submits checkout.</small></p><div id="orders" class="orders"><small>No purchases loaded.</small></div><button id="loadOrders" class="plain">Refresh purchases</button></div>
 <div class="footer">Warrant is a demonstration application using PayPal Sandbox. Not an official PayPal page.</div>
 
 <script>
@@ -368,4 +376,79 @@ showKey();
 loadSession().catch(e => log("Could not check PayPal sign-in: " + (e && e.message || e)));
 loadCapabilities().catch(e => log("Could not load agent capabilities: " + (e && e.message || e)));
 if (!(window.crypto && crypto.subtle)) log("Signing is unavailable here: browsers only allow it on https pages or localhost. Open this page over https.");
+
+//--tour-start
+const TOUR_KEY = "warrant.tour.seen";
+const tourSteps = [
+  { sel: ".intro", title: "Welcome to Warrant", text: "This 60-second tour shows how to give your shopping agent a safe, limited budget. It's all PayPal sandbox — no real money moves." },
+  { sel: "#cardSignIn", title: "1. Sign in", text: "Sign in with your PayPal sandbox account. This browser then creates a private key that proves every permission and purchase really came from you." },
+  { sel: "#cardPermission", title: "2. Set the rules", text: "Describe what your agent may buy, the most it can spend per purchase, your total budget, and how many times it can buy." },
+  { sel: "#holdThreshold", title: "Ask me first (optional)", text: "Leave this blank and your agent checks out with no click at all. Set a dollar amount and any purchase above it waits here for your approval before PayPal is ever charged." },
+  { sel: "#startShopping", title: "Authorize and go", text: "Click this when you're ready. Your agent finds a matching product and checks out automatically, inside the rules you just set." },
+  { sel: "#cardSafety", title: "3. Stay in control", text: "Stop automatic shopping or cancel a permission at any moment. Payments already sent to PayPal can't be undone, but nothing new will be charged after you stop it." },
+  { sel: "#cardHolds", title: "Pending approvals", text: "Any purchase that crossed your “ask me first” amount shows up here with Approve and Decline buttons." },
+  { sel: "#cardOrders", title: "Purchases", text: "Every completed purchase appears here, and the Activity log above records everything your agent does, step by step." },
+];
+let tourIndex = 0, tourDom = null;
+function tourMarkSeen() { try { localStorage.setItem(TOUR_KEY, "1"); } catch {} }
+function tourHasBeenSeen() { try { return Boolean(localStorage.getItem(TOUR_KEY)); } catch { return false; } }
+function buildTourDom() {
+  const backdrop = document.createElement("div"); backdrop.className = "tour-backdrop";
+  const highlight = document.createElement("div"); highlight.className = "tour-highlight";
+  highlight.style.top = highlight.style.left = highlight.style.width = highlight.style.height = "0px";
+  const tip = document.createElement("div"); tip.className = "tour-tip";
+  tip.innerHTML = '<h3></h3><p></p><div class="tour-nav"><span class="tour-progress"></span><span><button class="plain tour-back">Back</button><button class="plain tour-skip">Skip</button><button class="ok tour-next">Next</button></span></div>';
+  document.body.append(backdrop, highlight, tip);
+  tip.querySelector(".tour-back").onclick = () => tourShow(tourIndex - 1);
+  tip.querySelector(".tour-next").onclick = () => tourIndex === tourSteps.length - 1 ? closeTour() : tourShow(tourIndex + 1);
+  tip.querySelector(".tour-skip").onclick = closeTour;
+  return { backdrop, highlight, tip };
+}
+function positionTour(el, step) {
+  const r = el.getBoundingClientRect(), pad = 6;
+  tourDom.highlight.style.top = (r.top - pad) + "px";
+  tourDom.highlight.style.left = (r.left - pad) + "px";
+  tourDom.highlight.style.width = (r.width + pad * 2) + "px";
+  tourDom.highlight.style.height = (r.height + pad * 2) + "px";
+  const tip = tourDom.tip;
+  tip.querySelector("h3").textContent = step.title;
+  tip.querySelector("p").textContent = step.text;
+  tip.querySelector(".tour-progress").textContent = "Step " + (tourIndex + 1) + " of " + tourSteps.length;
+  tip.querySelector(".tour-back").style.visibility = tourIndex === 0 ? "hidden" : "visible";
+  tip.querySelector(".tour-next").textContent = tourIndex === tourSteps.length - 1 ? "Done" : "Next";
+  const tipRect = tip.getBoundingClientRect();
+  let top = r.bottom + pad * 2 + 10;
+  if (top + tipRect.height > window.innerHeight - 10) top = Math.max(10, r.top - tipRect.height - pad * 2 - 10);
+  const left = Math.min(Math.max(10, r.left), window.innerWidth - tipRect.width - 10);
+  tip.style.top = top + "px";
+  tip.style.left = left + "px";
+  tip.style.opacity = "1";
+}
+function tourShow(i) {
+  if (i < 0) return;
+  if (i >= tourSteps.length) return closeTour();
+  const step = tourSteps[i];
+  const el = document.querySelector(step.sel);
+  if (!el || el.offsetParent === null) return tourShow(i + 1);
+  tourIndex = i;
+  el.scrollIntoView({ block: "center", behavior: "smooth" });
+  setTimeout(() => positionTour(el, step), 280);
+}
+function closeTour() {
+  if (!tourDom) return;
+  tourDom.backdrop.remove(); tourDom.highlight.remove(); tourDom.tip.remove();
+  tourDom = null;
+  document.removeEventListener("keydown", tourKeydown);
+  tourMarkSeen();
+}
+function tourKeydown(e) { if (e.key === "Escape") closeTour(); }
+function startTour() {
+  if (tourDom) return;
+  tourDom = buildTourDom();
+  document.addEventListener("keydown", tourKeydown);
+  tourShow(0);
+}
+$("startTour").onclick = startTour;
+if (!tourHasBeenSeen()) setTimeout(startTour, 700);
+//--tour-end
 </script></body></html>
