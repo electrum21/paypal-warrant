@@ -28,6 +28,9 @@ const Env = z.object({
   // When "true", /api/checkout refuses purchases that break the mandate (HTTP 422) instead of recording them.
   ENFORCE_MANDATE: z.string().optional().transform(v => v === "true"),
   MERCHANT_ID: z.string().default("warrant-demo-merchant"),
+  // How long a held autonomous purchase (over the mandate's requireApprovalAboveCents) waits for the user
+  // to approve or decline before it expires and releases its held budget.
+  CHECKOUT_HOLD_MINUTES: z.coerce.number().positive().default(30),
   CHANNEL3_URL: z.preprocess(blank, z.string().url().optional()),
   CHANNEL3_API_KEY: z.preprocess(blank, z.string().min(1).optional()),
   ELASTIC_URL: z.preprocess(blank, z.string().url().optional()),

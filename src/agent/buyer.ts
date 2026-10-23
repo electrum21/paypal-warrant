@@ -118,7 +118,7 @@ export async function searchCatalog(baseUrl: string, search: {
 
 export function planShoppingRequest(
   request: string, user: DemoUser, agent: DemoAgent, merchantId: string, candidates: ProductCandidate[],
-  limits: { maxTotalAmountCents?: number; maxPurchases?: number } = {},
+  limits: { maxTotalAmountCents?: number; maxPurchases?: number; requireApprovalAboveCents?: number } = {},
 ) {
   const intent = parseShoppingRequest(request, merchantId);
   const product = chooseProduct(intent, candidates);
@@ -132,7 +132,7 @@ export function planShoppingRequest(
 
 export function buildMandate(
   agent: DemoAgent, merchantId: string, now = new Date(),
-  limits: { maxTotalAmountCents?: number; maxPurchases?: number } = {},
+  limits: { maxTotalAmountCents?: number; maxPurchases?: number; requireApprovalAboveCents?: number } = {},
 ): Mandate {
   const id = `mandate-${randomUUID().slice(0, 8)}`;
   return {

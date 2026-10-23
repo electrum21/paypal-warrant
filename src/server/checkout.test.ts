@@ -14,6 +14,7 @@ const MERCHANT = "warrant-demo-merchant";
 const cfg = {
   PAYPAL_CLIENT_ID: "id", PAYPAL_CLIENT_SECRET: "secret", DATABASE_PATH: ":memory:", PORT: 0, APP_URL: "http://localhost",
   ADMIN_TOKEN: "admin", ANTHROPIC_MODEL: "m", GEMINI_MODEL: "g", ENFORCE_MANDATE: false, MERCHANT_ID: MERCHANT, ELASTIC_INDEX: "i",
+  CHECKOUT_HOLD_MINUTES: 30,
 } as Config;
 const noDisputes: DisputesApi = { get: async () => ({}) as any, provideEvidence: async () => {}, makeOffer: async () => {}, acceptClaim: async () => {} };
 
@@ -338,7 +339,7 @@ describe("natural-language request -> Channel3 -> autonomous checkout", () => {
 
 describe("autonomous mandate budget: cumulative limits, single use, reservation", () => {
   const codes = (r: { body: any }) => (r.body.findings ?? []).map((f: any) => f.code);
-  const prep = async (limits: { maxTotalAmountCents?: number; maxPurchases?: number } = {}) => {
+  const prep = async (limits: { maxTotalAmountCents?: number; maxPurchases?: number; requireApprovalAboveCents?: number } = {}) => {
     const s = await setup();
     linkPaymentToken(s.db, s.user.userId, "TOK-1");
     const sm = signFor(s.user, buildMandate(s.agent, MERCHANT, new Date(), limits));
@@ -464,6 +465,193 @@ describe("autonomous mandate budget: cumulative limits, single use, reservation"
     expect((await buy(9500, "approve")).status).toBe(201);
     expect((await buy(9500, "approve")).status).toBe(201);
     expect(charges).toHaveLength(0);
+  });
+});
+
+describe("POST /api/checkout autonomous hold (requireApprovalAboveCents)", () => {
+  const postJson = (path: string, body: unknown = {}, headers: Record<string, string> = {}) =>
+    realFetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) })
+      .then(async r => ({ status: r.status, body: await r.json() as any }));
+  const control = (user: ReturnType<typeof newUser>, action: ControlAction, subjectId: string, over: Partial<ControlRequest> = {}) => ({
+    signedControl: signControl({ action, userId: user.userId, subjectId, issuedAt: new Date().toISOString(), nonce: randomUUID(), ...over }, user.privateKeyPem),
+  });
+  const admin = { "x-admin-token": "admin" };
+
+  const prep = async (requireApprovalAboveCents = 10000) => {
+    const s = await setup();
+    linkPaymentToken(s.db, s.user.userId, "TOK-1");
+    const sm = signFor(s.user, buildMandate(s.agent, MERCHANT, new Date(), { maxTotalAmountCents: 30000, maxPurchases: 3, requireApprovalAboveCents }));
+    const cart = cartFor(s.agent, sm, { merchantId: MERCHANT, amountCents: 11500, category: "footwear" });
+    const buy = () => post({ signedMandate: sm, signedCart: cart, purchase: { amountCents: 11500, category: "footwear" }, mode: "autonomous" });
+    const approve = (extra: Partial<ControlRequest> = {}) => postJson(`/api/checkouts/${cart.cart.cartId}/approve`, control(s.user, "approve_checkout", cart.cart.cartId, extra));
+    const decline = (extra: Partial<ControlRequest> = {}) => postJson(`/api/checkouts/${cart.cart.cartId}/decline`, control(s.user, "decline_checkout", cart.cart.cartId, extra));
+    return { ...s, sm, cart, buy, approve, decline };
+  };
+
+  it("holds an over-threshold purchase instead of charging, with budget already reserved", async () => {
+    const { db, sm, cart, buy } = await prep();
+    const r = await buy();
+    expect(r.status).toBe(202);
+    expect(r.body).toMatchObject({ status: "PENDING_APPROVAL", cartId: cart.cart.cartId, amountCents: 11500, thresholdCents: 10000 });
+    expect(charges).toHaveLength(0);
+    expect(db.prepare("SELECT status FROM mandate_uses WHERE cart_id = ?").get(cart.cart.cartId)).toEqual({ status: "RESERVED" });
+    expect(db.prepare("SELECT status FROM checkout_holds WHERE cart_id = ?").get(cart.cart.cartId)).toEqual({ status: "PENDING" });
+    expect(getMandateUsage(db, sm.mandate.id)).toEqual({ spentAmountCents: 11500, purchaseCount: 1 }); // held, so it counts against the budget already
+  });
+
+  it("does not hold a purchase at or under the threshold", async () => {
+    const { buy } = await prep(11500);
+    expect((await buy()).status).toBe(201);
+    expect(charges).toHaveLength(1);
+  });
+
+  it("charges only once the user approves it, with their own signature", async () => {
+    const { db, cart, buy, approve } = await prep();
+    expect((await buy()).status).toBe(202);
+    const r = await approve();
+    expect(r.status).toBe(201);
+    expect(r.body).toMatchObject({ status: "CAPTURED", orderId: "CHARGE-1", captureId: "CAP-1" });
+    expect(charges).toHaveLength(1);
+    expect(charges[0].requestId).toBe(`charge-${cart.cart.cartId}`);
+    expect(db.prepare("SELECT status FROM checkout_holds WHERE cart_id = ?").get(cart.cart.cartId)).toEqual({ status: "APPROVED" });
+    expect(db.prepare("SELECT status FROM mandate_uses WHERE cart_id = ?").get(cart.cart.cartId)).toEqual({ status: "CAPTURED" });
+  });
+
+  it("reopens the hold for retry if PayPal refuses the charge on approval, instead of leaving it stuck APPROVED", async () => {
+    const { db, sm, cart, buy, approve } = await prep();
+    expect((await buy()).status).toBe(202);
+    failCharge = true;
+    const refused = await approve();
+    expect(refused.status).toBe(502);
+    expect(refused.body.outcome).toBe("REFUSED");
+    expect(db.prepare("SELECT status FROM checkout_holds WHERE cart_id = ?").get(cart.cart.cartId)).toEqual({ status: "PENDING" });
+    expect(getMandateUsage(db, sm.mandate.id)).toEqual({ spentAmountCents: 0, purchaseCount: 0 }); // released, not stuck held
+    failCharge = false;
+    const retried = await approve();                 // the hold is PENDING again, so approving it is accepted
+    expect(retried.status).toBe(201);
+    expect(retried.body).toMatchObject({ status: "CAPTURED" });
+    expect(db.prepare("SELECT status FROM checkout_holds WHERE cart_id = ?").get(cart.cart.cartId)).toEqual({ status: "APPROVED" });
+    expect(charges).toHaveLength(2); // the refused attempt, then the successful retry
+  });
+
+  it("reopens the hold if PayPal's outcome is unknown on approval, and the retry reuses the same idempotency key", async () => {
+    const { db, sm, cart, buy, approve } = await prep();
+    expect((await buy()).status).toBe(202);
+    chargeThrows = true;
+    const unknown = await approve();
+    expect(unknown.status).toBe(502);
+    expect(unknown.body.outcome).toBe("UNKNOWN");
+    expect(db.prepare("SELECT status FROM checkout_holds WHERE cart_id = ?").get(cart.cart.cartId)).toEqual({ status: "PENDING" });
+    expect(getMandateUsage(db, sm.mandate.id)).toEqual({ spentAmountCents: 11500, purchaseCount: 1 }); // stays held, not released
+    chargeThrows = false;
+    const retried = await approve();
+    expect(retried.status).toBe(201);
+    expect(charges).toHaveLength(2);
+    expect(charges[1].requestId).toBe(charges[0].requestId); // same idempotency key, so PayPal cannot charge twice
+  });
+
+  it("declining after a reopened (refused) hold still works", async () => {
+    const { db, sm, cart, buy, approve, decline } = await prep();
+    expect((await buy()).status).toBe(202);
+    failCharge = true;
+    await approve();
+    failCharge = false;
+    const declined = await decline();
+    expect(declined.status).toBe(200);
+    expect(getMandateUsage(db, sm.mandate.id)).toEqual({ spentAmountCents: 0, purchaseCount: 0 });
+    expect(charges).toHaveLength(1); // the earlier refused attempt; declining makes no further PayPal call
+  });
+
+  it("refuses to approve with the admin token: only the user can release held money", async () => {
+    const { buy, cart } = await prep();
+    await buy();
+    const r = await postJson(`/api/checkouts/${cart.cart.cartId}/approve`, {}, admin);
+    expect(r.status).toBe(403);
+    expect(charges).toHaveLength(0);
+  });
+
+  it("refuses to approve with someone else's signature", async () => {
+    const { db, user, buy, cart } = await prep();
+    await buy();
+    const mallory = newUser("mallory");
+    registerUserKey(db, mallory.userId, mallory.publicKeyPem);
+    // Right user id and subject, but signed with the wrong (mallory's) key.
+    const forged = { signedControl: signControl(
+      { action: "approve_checkout", userId: user.userId, subjectId: cart.cart.cartId, issuedAt: new Date().toISOString(), nonce: randomUUID() },
+      mallory.privateKeyPem,
+    ) };
+    const r = await postJson(`/api/checkouts/${cart.cart.cartId}/approve`, forged);
+    expect(r.status).toBe(401);
+    expect(charges).toHaveLength(0);
+  });
+
+  it("declining releases the held budget and charges nothing; the admin token may also decline", async () => {
+    const { db, sm, buy, decline } = await prep();
+    await buy();
+    const r = await decline({ reason: "didn't mean to" });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ ok: true, status: "DECLINED" });
+    expect(charges).toHaveLength(0);
+    expect(getMandateUsage(db, sm.mandate.id)).toEqual({ spentAmountCents: 0, purchaseCount: 0 });
+  });
+
+  it("cannot approve or decline the same hold twice", async () => {
+    const { buy, approve, decline } = await prep();
+    await buy();
+    expect((await approve()).status).toBe(201);
+    expect((await decline()).status).toBe(409);
+  });
+
+  it("404s for a cart id with no held checkout", async () => {
+    const { user } = await prep();
+    const r = await postJson("/api/checkouts/no-such-cart/approve", control(user, "approve_checkout", "no-such-cart"));
+    expect(r.status).toBe(404);
+  });
+
+  it("expires a hold whose window has passed, releasing its budget", async () => {
+    const { db, sm, cart, buy, approve } = await prep();
+    await buy();
+    db.prepare("UPDATE checkout_holds SET expires_at = datetime('now', '-1 minute') WHERE cart_id = ?").run(cart.cart.cartId);
+    const r = await approve();
+    expect(r.status).toBe(409);
+    expect(r.body.status).toBe("EXPIRED");
+    expect(charges).toHaveLength(0);
+    expect(getMandateUsage(db, sm.mandate.id)).toEqual({ spentAmountCents: 0, purchaseCount: 0 });
+    expect(db.prepare("SELECT status FROM mandate_uses WHERE cart_id = ?").get(cart.cart.cartId)).toEqual({ status: "RELEASED" });
+  });
+
+  it("refuses to approve a hold for a mandate the user revoked while it was pending", async () => {
+    const { db, user, sm, buy, approve } = await prep();
+    await buy();
+    const revoked = await postJson(`/api/mandates/${sm.mandate.id}/revoke`, control(user, "revoke_mandate", sm.mandate.id));
+    expect(revoked.status).toBe(200);
+    const r = await approve();
+    expect(r.status).toBe(422);
+    expect(r.body.findings.map((f: any) => f.code)).toContain("MANDATE_REVOKED");
+    expect(charges).toHaveLength(0);
+    expect(getMandateUsage(db, sm.mandate.id)).toEqual({ spentAmountCents: 0, purchaseCount: 0 });
+  });
+
+  it("refuses to approve a hold while the agent is paused, even though it was not paused when the hold was created", async () => {
+    const { user, buy, approve } = await prep();
+    await buy();
+    const paused = await postJson(`/api/users/${user.userId}/pause-agent`, control(user, "pause_agent", user.userId));
+    expect(paused.status).toBe(200);
+    const r = await approve();
+    expect(r.status).toBe(422);
+    expect(r.body.findings.map((f: any) => f.code)).toContain("AGENT_PAUSED");
+    expect(charges).toHaveLength(0);
+  });
+
+  it("lists pending holds for a user, and they disappear once resolved", async () => {
+    const { db, user, cart, buy, decline } = await prep();
+    await buy();
+    const listed = await postJson(`/api/users/${user.userId}/holds`, control(user, "view_orders", user.userId));
+    expect(listed.status).toBe(200);
+    expect(listed.body).toEqual([expect.objectContaining({ cartId: cart.cart.cartId, status: "PENDING", amountCents: 11500 })]);
+    await decline();
+    const after = await postJson(`/api/users/${user.userId}/holds`, control(user, "view_orders", user.userId));
+    expect(after.body).toEqual([]);
   });
 });
 

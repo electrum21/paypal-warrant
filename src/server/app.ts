@@ -11,15 +11,15 @@ import { captureOrder, chargeVaultedToken, createOrder, createPayPalSetupToken, 
 import { paypalDisputes, type DisputesApi } from "../paypal/disputes.js";
 import { anthropicClient, geminiClient, type LlmClient } from "../ai/draft.js";
 import { addDeliveryEvidence, approveDispute, getDispute, listDisputes, processDispute, rejectDispute, ServiceError, type Deps } from "../disputes/service.js";
-import { Cart, Mandate, type Purchase } from "../mandate/types.js";
+import { Cart, Mandate, type Finding, type Purchase, type SignedCart, type SignedMandate } from "../mandate/types.js";
 import { checkPaymentAuthorization, checkPurchase } from "../mandate/check.js";
 import { ControlRequest, controlIsFresh, verifyControl, type ControlAction } from "../mandate/control.js";
 import { verifyAuthorization } from "../mandate/authorize.js";
 import { isEd25519PublicKeyPem } from "../mandate/sign.js";
-import { cartAlreadyUsed, getAgentEvent, getAgentKey, getAgentOwner, getAgentPause, getMandateUsage, getPaymentAuthorization, getRevocation, getUserKey, linkPaymentToken, listMandateUses, listUserOrders, markCaptured, markMandateUse, recordControlEvent, recordKeyChange, recordOrder, registerAgentKey, registerUserKey, reserveMandateUse, revokePaymentAuthorization, saveMandate, saveProductCheck, toIso, type UseStatus } from "../repo.js";
+import { cartAlreadyUsed, createCheckoutHold, getAgentEvent, getAgentKey, getAgentOwner, getAgentPause, getCheckoutHold, getMandateUsage, getPaymentAuthorization, getRevocation, getUserKey, linkPaymentToken, listCheckoutHolds, listMandateUses, listUserOrders, markCaptured, markMandateUse, recordControlEvent, recordKeyChange, recordOrder, registerAgentKey, registerUserKey, reopenCheckoutHold, reserveMandateUse, resolveCheckoutHold, revokePaymentAuthorization, saveMandate, saveProductCheck, toIso, type CheckoutHoldRow, type UseStatus } from "../repo.js";
 import { adminPageHtml } from "./adminPage.js";
 import { landingPageHtml } from "./landingPage.js";
-import { productFindings, searchChannel3, suggestAlternatives, verifyProduct } from "../integrations/channel3.js";
+import { productFindings, searchChannel3, suggestAlternatives, verifyProduct, type ProductCheck } from "../integrations/channel3.js";
 import { caseSummary, findSimilarCases, indexAgentEvent, indexDisputeCase, outcomeOf, searchAgentEvents, type DisputeCase } from "../integrations/elastic.js";
 import { buildZapierEvent, notifyZapier } from "../integrations/zapier.js";
 import { PAYPAL_MCP_ALLOWED_TOOLS } from "../integrations/mcpClient.js";
@@ -266,6 +266,89 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
     res.json({ source: products.length ? "channel3" : "not_configured", products });
   }));
 
+  interface StoredAutonomousCheckout {
+    sm: SignedMandate; signedCart: SignedCart;
+    purchase: { amountCents: number; currency?: string; category?: string; description?: string };
+    p: Purchase; findings: Finding[]; productCheck?: ProductCheck;
+  }
+
+  /** Charges an already budget-reserved cart and records the result. Shared by the immediate-charge path
+   * (mode: "autonomous", under the approval threshold) and the held-checkout approval path, so both record
+   * and respond identically. */
+  async function chargeAndRecord(tokenId: string, c: StoredAutonomousCheckout): Promise<{ status: number; body: Record<string, unknown> }> {
+    const { sm, signedCart, purchase, p, findings, productCheck } = c;
+    const cartId = signedCart.cart.cartId;
+    inFlight.add(cartId);
+    try {
+      let paid;
+      try {
+        // The signed cart id is the idempotency key: a retry returns the same PayPal order instead of charging twice.
+        paid = await chargeVaultedToken(cfg, {
+          tokenId, amountCents: p.amountCents, currency: p.currency, mandateId: sm.mandate.id,
+          chargeKey: cartId, description: purchase.description,
+        });
+      } catch (err) {
+        console.error("autonomous charge failed", err);
+        const msg = (err as Error).message;
+        // Only a clear PayPal refusal (4xx) proves no money moved. A network error, timeout or 5xx could hide a charge that went
+        // through, so the budget stays held and the cart can be retried safely with the same idempotency key.
+        const refused = err instanceof PayPalHttpError && err.status >= 400 && err.status < 500 && err.status !== 408 && err.status !== 429;
+        if (refused) {
+          markMandateUse(db, cartId, "RELEASED", { detail: msg.slice(0, 500) });
+          return { status: 502, body: { error: `PayPal could not complete the charge: ${msg}`, outcome: "REFUSED", findings } };
+        }
+        markMandateUse(db, cartId, "UNKNOWN", { detail: msg.slice(0, 500) });
+        return { status: 502, body: {
+          error: `PayPal's outcome is unknown: ${msg}. The budget stays held. Retry the same signed cart to resolve it safely.`,
+          outcome: "UNKNOWN", findings,
+        } };
+      }
+      const capture = paid.purchase_units?.[0]?.payments?.captures?.[0];
+      if (paid.status !== "COMPLETED" || !capture?.id) {
+        const declined = capture !== undefined && ["DECLINED", "FAILED"].includes(capture.status);
+        markMandateUse(db, cartId, declined ? "RELEASED" : "UNKNOWN", { paypalOrderId: paid.id, detail: `PayPal status ${paid.status}` });
+        return { status: 502, body: {
+          error: `PayPal did not complete the payment (status ${paid.status}).`, orderId: paid.id,
+          outcome: declined ? "REFUSED" : "UNKNOWN", findings,
+        } };
+      }
+      // Money has moved. Record that first, so a crash before the order row is written cannot lose it.
+      markMandateUse(db, cartId, "CAPTURED", { paypalOrderId: paid.id, captureId: capture.id });
+      try {
+        const orderRowId = recordOrder(db, {
+          paypalOrderId: paid.id, mandateId: sm.mandate.id, merchantId: p.merchantId, amountCents: p.amountCents,
+          currency: p.currency, category: p.category, findings, at: p.at, signedCart, captureId: capture.id,
+        });
+        markMandateUse(db, cartId, "CAPTURED", { orderId: orderRowId });
+        if (productCheck && productCheck.lookup !== "unavailable") saveProductCheck(db, orderRowId, productCheck);
+      } catch {
+        return { status: 409, body: { error: "This signed cart was already used for an order." } };
+      }
+      markCaptured(db, paid.id, capture.id);
+      const usage = getMandateUsage(db, sm.mandate.id);
+      return { status: 201, body: {
+        orderId: paid.id, captureId: capture.id, status: "CAPTURED", findings,
+        mandateUsage: {
+          ...usage,
+          remainingTotalCents: sm.mandate.maxTotalAmountCents === undefined ? undefined : Math.max(0, sm.mandate.maxTotalAmountCents - usage.spentAmountCents),
+        },
+      } };
+    } finally {
+      inFlight.delete(cartId);
+    }
+  }
+
+  /** Expires a PENDING hold whose window has passed, releasing its held budget. Checked lazily on every touch
+   * (approve, decline, list) rather than by a background sweep. */
+  function expireHoldIfDue(h: CheckoutHoldRow): CheckoutHoldRow {
+    if (h.status !== "PENDING" || Date.parse(h.expiresAt) > Date.now()) return h;
+    if (resolveCheckoutHold(db, h.cartId, "EXPIRED")) {
+      markMandateUse(db, h.cartId, "RELEASED", { detail: "Approval window expired" });
+      return { ...h, status: "EXPIRED" };
+    }
+    return getCheckoutHold(db, h.cartId) ?? h;               // someone else resolved it between our read and our write
+  }
+
   // Agent-facing: a buyer agent presents its signed mandate and asks to buy.
   // By default findings are RECORDED, not enforced, so out-of-mandate purchases can be demoed and later defended.
   // Set ENFORCE_MANDATE=true to refuse them with a 422 instead.
@@ -336,64 +419,20 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
         if (hold.reason === "ALREADY_CAPTURED") return res.status(409).json({ error: "This signed cart was already used for an order." });
         return res.status(422).json({ error: "Purchase would exceed the mandate's cumulative limits and was not processed.", findings: [...findings, ...hold.findings] });
       }
-      inFlight.add(cartId);
-      try {
-      let paid;
-      try {
-        // The signed cart id is the idempotency key: a retry returns the same PayPal order instead of charging twice.
-        paid = await chargeVaultedToken(cfg, {
-          tokenId, amountCents: p.amountCents, currency: p.currency, mandateId: sm.mandate.id,
-          chargeKey: cartId, description: purchase.description,
-        });
-      } catch (err) {
-        console.error("autonomous charge failed", err);
-        const msg = (err as Error).message;
-        // Only a clear PayPal refusal (4xx) proves no money moved. A network error, timeout or 5xx could hide a charge that went
-        // through, so the budget stays held and the cart can be retried safely with the same idempotency key.
-        const refused = err instanceof PayPalHttpError && err.status >= 400 && err.status < 500 && err.status !== 408 && err.status !== 429;
-        if (refused) {
-          markMandateUse(db, cartId, "RELEASED", { detail: msg.slice(0, 500) });
-          return res.status(502).json({ error: `PayPal could not complete the charge: ${msg}`, outcome: "REFUSED", findings });
-        }
-        markMandateUse(db, cartId, "UNKNOWN", { detail: msg.slice(0, 500) });
-        return res.status(502).json({
-          error: `PayPal's outcome is unknown: ${msg}. The budget stays held. Retry the same signed cart to resolve it safely.`,
-          outcome: "UNKNOWN", findings,
+      const checkoutToCharge: StoredAutonomousCheckout = { sm, signedCart, purchase, p, findings, productCheck };
+      // Above this threshold, a no-click purchase waits for the user's explicit approval instead of charging
+      // immediately. Budget is already held above, so it cannot be spent elsewhere while it waits.
+      const threshold = sm.mandate.requireApprovalAboveCents;
+      if (threshold !== undefined && p.amountCents > threshold) {
+        const expiresAt = new Date(Date.now() + cfg.CHECKOUT_HOLD_MINUTES * 60_000).toISOString();
+        createCheckoutHold(db, { cartId, mandateId: sm.mandate.id, userId: sm.mandate.userId, amountCents: p.amountCents, currency: p.currency, checkout: checkoutToCharge, expiresAt });
+        return res.status(202).json({
+          status: "PENDING_APPROVAL", cartId, amountCents: p.amountCents, currency: p.currency, thresholdCents: threshold, expiresAt, findings,
+          message: `This purchase of ${(p.amountCents / 100).toFixed(2)} ${p.currency} is over the ${(threshold / 100).toFixed(2)} ${p.currency} approval threshold. Approve or decline it (POST /api/checkouts/${cartId}/approve or /decline) before ${expiresAt}.`,
         });
       }
-      const capture = paid.purchase_units?.[0]?.payments?.captures?.[0];
-      if (paid.status !== "COMPLETED" || !capture?.id) {
-        const declined = capture !== undefined && ["DECLINED", "FAILED"].includes(capture.status);
-        markMandateUse(db, cartId, declined ? "RELEASED" : "UNKNOWN", { paypalOrderId: paid.id, detail: `PayPal status ${paid.status}` });
-        return res.status(502).json({
-          error: `PayPal did not complete the payment (status ${paid.status}).`, orderId: paid.id,
-          outcome: declined ? "REFUSED" : "UNKNOWN", findings,
-        });
-      }
-      // Money has moved. Record that first, so a crash before the order row is written cannot lose it.
-      markMandateUse(db, cartId, "CAPTURED", { paypalOrderId: paid.id, captureId: capture.id });
-      try {
-        const orderRowId = recordOrder(db, {
-          paypalOrderId: paid.id, mandateId: sm.mandate.id, merchantId: p.merchantId, amountCents: p.amountCents,
-          currency: p.currency, category: p.category, findings, at: p.at, signedCart, captureId: capture.id,
-        });
-        markMandateUse(db, cartId, "CAPTURED", { orderId: orderRowId });
-        snapshotProduct(orderRowId);
-      } catch {
-        return res.status(409).json({ error: "This signed cart was already used for an order." });
-      }
-      markCaptured(db, paid.id, capture.id);
-      const usage = getMandateUsage(db, sm.mandate.id);
-      return res.status(201).json({
-        orderId: paid.id, captureId: capture.id, status: "CAPTURED", findings,
-        mandateUsage: {
-          ...usage,
-          remainingTotalCents: sm.mandate.maxTotalAmountCents === undefined ? undefined : Math.max(0, sm.mandate.maxTotalAmountCents - usage.spentAmountCents),
-        },
-      });
-      } finally {
-        inFlight.delete(cartId);
-      }
+      const result = await chargeAndRecord(tokenId, checkoutToCharge);
+      return res.status(result.status).json(result.body);
     }
 
     const order = await createOrder(cfg, {
@@ -487,6 +526,70 @@ export function createApp(cfg: Config, db: Db, inject: { disputes?: DisputesApi;
     revokePaymentAuthorization(db, userId);
     res.json({ ok: true, userId, alreadyRevoked: false, revokedAt: ev.appliedAt, reason: ev.reason ?? undefined, via: ev.via });
   });
+
+  // ---- Held checkouts: an autonomous purchase over requireApprovalAboveCents, waiting on the user ---------------
+  // Approving moves real money, so (like resume-agent) only the user's own signature can do it, never the admin
+  // token. Declining is a stop action, so (like pause/revoke) the admin token may do it too.
+
+  app.post("/api/checkouts/:cartId/approve", wrap(async (req, res) => {
+    const cartId = req.params.cartId;
+    const found = getCheckoutHold(db, cartId);
+    if (!found) throw new ServiceError(404, `No held checkout ${cartId} was found.`);
+    const hold = expireHoldIfDue(found);
+    if (hold.status !== "PENDING") return res.status(409).json({ error: `This checkout is already ${hold.status.toLowerCase()}.`, status: hold.status });
+    const a = authorizeControl(req, { action: "approve_checkout", subjectId: cartId, allowAdmin: false, knownUserId: hold.userId, expectUserId: hold.userId });
+    const c = hold.checkout as StoredAutonomousCheckout;
+    // Revocation, pause and the payment authorization are re-checked NOW, against the mandate's OWN clock
+    // ("now", not the original request time): a hold can sit for a while, and any of them (or the mandate's own
+    // expiry) may change while it waits. Approving never bypasses them.
+    const revocation = getRevocation(db, c.sm.mandate.id, c.sm.mandate.userId);
+    const pause = getAgentPause(db, c.sm.mandate.userId);
+    const payAuth = getPaymentAuthorization(db, c.sm.mandate.userId);
+    const liveFindings: Finding[] = [
+      ...checkPurchase(c.sm.mandate, { ...c.p, at: new Date().toISOString() }, {
+        revokedAt: revocation?.revokedAt ?? null, revokedReason: revocation?.reason, agentPaused: pause.paused ? pause : null,
+      }),
+      ...(payAuth ? checkPaymentAuthorization(payAuth, new Date())
+        : [{ code: "PAYMENT_AUTHORIZATION_REVOKED", severity: "block" as const, message: "The user's saved payment method was disconnected while this checkout was pending." }]),
+    ];
+    if (liveFindings.length) {
+      if (resolveCheckoutHold(db, cartId, "DECLINED")) markMandateUse(db, cartId, "RELEASED", { detail: liveFindings.map(f => f.code).join(", ") });
+      return res.status(422).json({ error: "This purchase can no longer be approved.", findings: liveFindings });
+    }
+    if (!resolveCheckoutHold(db, cartId, "APPROVED")) return res.status(409).json({ error: "This checkout was already resolved." });
+    record(a, "approve_checkout", cartId);
+    const result = await chargeAndRecord(payAuth!.tokenId, c);
+    // PayPal refused the charge, or its outcome is unknown: nothing was definitively captured, so this is not
+    // really "approved" yet. Reopen the hold so the user can approve again (a safe retry, same idempotency
+    // key) or decline it, instead of it being stuck APPROVED with nothing charged and no way to act on it.
+    if (result.status === 502) reopenCheckoutHold(db, cartId);
+    res.status(result.status).json(result.body);
+  }));
+
+  app.post("/api/checkouts/:cartId/decline", wrap(async (req, res) => {
+    const cartId = req.params.cartId;
+    const found = getCheckoutHold(db, cartId);
+    if (!found) throw new ServiceError(404, `No held checkout ${cartId} was found.`);
+    const hold = expireHoldIfDue(found);
+    if (hold.status !== "PENDING") return res.status(409).json({ error: `This checkout is already ${hold.status.toLowerCase()}.`, status: hold.status });
+    const a = authorizeControl(req, { action: "decline_checkout", subjectId: cartId, allowAdmin: true, knownUserId: hold.userId, expectUserId: hold.userId });
+    if (!resolveCheckoutHold(db, cartId, "DECLINED")) return res.status(409).json({ error: "This checkout was already resolved." });
+    record(a, "decline_checkout", cartId);
+    markMandateUse(db, cartId, "RELEASED", { detail: a.reason ?? "Declined" });
+    res.json({ ok: true, cartId, status: "DECLINED" });
+  }));
+
+  app.post("/api/users/:id/holds", wrap(async (req, res) => {
+    const userId = req.params.id;
+    if (!getUserKey(db, userId)) throw new ServiceError(404, `No key is registered for user ${userId}.`);
+    const a = authorizeControl(req, { action: "view_orders", subjectId: userId, allowAdmin: false, knownUserId: userId, expectUserId: userId });
+    record(a, "view_orders", userId);
+    const holds = listCheckoutHolds(db, userId).map(expireHoldIfDue);
+    res.json(holds.map(h => ({
+      cartId: h.cartId, mandateId: h.mandateId, amountCents: h.amountCents, currency: h.currency,
+      status: h.status, expiresAt: h.expiresAt, createdAt: h.createdAt,
+    })));
+  }));
 
   // The page itself holds no secrets and sends no keys; it only serves HTML and calls the routes above.
   // User-controlled authorization page. Keep /me as a backwards-compatible alias.

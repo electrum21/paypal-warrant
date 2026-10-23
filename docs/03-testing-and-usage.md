@@ -113,6 +113,7 @@ copy .env.example .env      # PowerShell (cp on macOS/Linux)
 | `GEMINI_API_KEY`, `GEMINI_MODEL` | No | Enables LLM explanations with Gemini. Default model `gemini-3.1-flash-lite` |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | No | Enables LLM explanations with Anthropic (used only if no Gemini key). Default model `claude-sonnet-5-5` |
 | `ENFORCE_MANDATE` | No | `true` makes `/api/checkout` refuse purchases that break the mandate (HTTP 422). Default `false`: record them and defend later |
+| `CHECKOUT_HOLD_MINUTES` | No | How long an autonomous purchase over a mandate's `requireApprovalAboveCents` waits for the user to approve or decline before it expires. Default `30` |
 | `CHANNEL3_URL`, `CHANNEL3_API_KEY` | No | Real product search for `buy-request`. URL is `https://api.trychannel3.com`. Adapter calls `POST /v1/search` with an `x-api-key` header |
 | `ELASTIC_URL`, `ELASTIC_API_KEY`, `ELASTIC_INDEX` | No | Indexes the merchant agent's investigation events and enables `/api/agent-events/search`. URL is the Elasticsearch endpoint (not Kibana). Default index `warrant-agent-events` |
 | `ZAPIER_WEBHOOK_URL` | No | A Zapier Catch Hook URL. Receives a `proposal_ready` message when a proposal is created |
@@ -274,8 +275,20 @@ Agent-facing (no token):
 |---|---|---|
 | `GET /health` | | Feature flags |
 | `POST /api/catalog/search` | `{ query, maxAmountCents, currency?, category? }` | `{ source, products }`. `source` is `channel3` when results came from Channel3, else `not_configured`. Unauthenticated; consider adding auth |
-| `POST /api/checkout` | `{ signedMandate, purchase: { amountCents, currency?, category?, description? } }` | `201 { orderId, approveUrl, findings }`. 400 for unknown agent or bad signature, 409 for a reused mandate id, **422 if `ENFORCE_MANDATE=true` and the purchase breaks the mandate** |
+| `POST /api/checkout` | `{ signedMandate, purchase: { amountCents, currency?, category?, description? }, mode? }` | `201 { orderId, approveUrl, findings }` (mode `"approve"`) or `201 { orderId, captureId, status, findings }` (mode `"autonomous"`). 400 for unknown agent or bad signature, 409 for a reused mandate id, **422 if `ENFORCE_MANDATE=true` (or always, in autonomous mode) and the purchase breaks the mandate**. **202** `{ status: "PENDING_APPROVAL", cartId, expiresAt }` when autonomous and over the mandate's `requireApprovalAboveCents` — budget is held but PayPal is not charged until approved |
 | `GET /paypal/return?token=ORDER_ID` | | Captures the payment, stores the capture ID |
+
+User-signed (body `{ signedControl: { request, signature } }`, signed with the user's own key — see `src/mandate/control.ts`; the admin token may substitute for every action below except `resume-agent` and `approve`, which only the user may do):
+
+| Method and path | Result |
+|---|---|
+| `POST /api/mandates/:id/revoke` | Revokes one mandate immediately; checked on every later checkout and dispute |
+| `POST /api/users/:id/pause-agent` / `/resume-agent` | Stops or allows autonomous checkout for every mandate that user owns |
+| `POST /api/users/:id/revoke-payment` | Disconnects the saved PayPal Vault token; autonomous checkout then 409s until relinked |
+| `POST /api/users/:id/orders` | Lists that user's orders |
+| `POST /api/users/:id/holds` | Lists that user's pending checkout holds (see below); auto-expires any whose window has passed |
+| `POST /api/checkouts/:cartId/approve` | Charges a held checkout now. Re-checks revocation, pause and the payment authorization at the moment of approval, not at hold creation. `409` if already resolved or expired, `422` if one of those live checks now fails |
+| `POST /api/checkouts/:cartId/decline` | Releases a held checkout's budget without charging. `409` if already resolved or expired |
 
 Merchant-facing (header `x-admin-token`, or `?token=` on the page):
 

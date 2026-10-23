@@ -36,15 +36,25 @@ if (cmd === "register") {
   console.log(r.status === 201 ? `Linked payment token to user "${user.userId}". The agent can now buy with: npm run demo -- buy-auto <scenario>` : `Failed (${r.status}): ${JSON.stringify(r.body)}`);
 } else if (cmd === "buy-auto") {
   const s = arg as Scenario;
-  if (!SCENARIOS[s]) { console.error(`Usage: npm run demo -- buy-auto <${Object.keys(SCENARIOS).join("|")}>`); process.exit(1); }
+  if (!SCENARIOS[s]) { console.error(`Usage: npm run demo -- buy-auto <${Object.keys(SCENARIOS).join("|")}> [holdAboveDollars]`); process.exit(1); }
   const sc = SCENARIOS[s];
-  const signedMandate = signFor(user, buildMandate(agent, merchantId));
+  // Optional third arg: a mandate's requireApprovalAboveCents, in dollars, to exercise the held-checkout flow.
+  const holdArg = process.argv[4];
+  const requireApprovalAboveCents = holdArg ? Math.round(Number(holdArg) * 100) : undefined;
+  const signedMandate = signFor(user, buildMandate(agent, merchantId, new Date(), { requireApprovalAboveCents }));
   const signedCart = cartFor(agent, signedMandate, { merchantId, amountCents: sc.amountCents, category: sc.category });
   console.log(`Scenario ${s}: ${sc.label}\nAutonomous purchase: no approval link, the saved PayPal account is charged directly.`);
   const r = await checkout(base, signedMandate, signedCart, { amountCents: sc.amountCents, category: sc.category, description: `Warrant demo auto (${s})` }, "autonomous");
   if (r.status === 201) console.log(`Paid. Order ${r.body.orderId}, capture ${r.body.captureId}. Findings: ${r.body.findings.length ? r.body.findings.map((f: any) => f.code).join(", ") : "none"}\nNow raise a dispute on that payment as the sandbox buyer, then: npm run demo -- import <PAYPAL_DISPUTE_ID>`);
+  else if (r.status === 202) console.log(`Held for approval. Cart ${r.body.cartId}, expires ${r.body.expiresAt}.\nApprove with: npm run demo -- approve-checkout ${r.body.cartId}\nDecline with: npm run demo -- decline-checkout ${r.body.cartId}`);
   else console.log(`Refused (${r.status}): ${r.body.error}${r.body.findings?.length ? ` Findings: ${r.body.findings.map((f: any) => f.code).join(", ")}` : ""}`
     + (r.body.alternatives?.length ? `\nIn-mandate alternatives: ${r.body.alternatives.map((p: any) => `${p.description} (${(p.amountCents / 100).toFixed(2)} ${p.currency})`).join("; ")}` : ""));
+} else if (cmd === "approve-checkout" && arg) {
+  await userControl(`/api/checkouts/${encodeURIComponent(arg)}/approve`, "approve_checkout", arg);
+} else if (cmd === "decline-checkout" && arg) {
+  await userControl(`/api/checkouts/${encodeURIComponent(arg)}/decline`, "decline_checkout", arg, process.argv.slice(4).join(" ") || undefined);
+} else if (cmd === "list-holds") {
+  await userControl(`/api/users/${encodeURIComponent(user.userId)}/holds`, "view_orders", user.userId);
 } else if (cmd === "buy") {
   const s = arg as Scenario;
   if (!SCENARIOS[s]) { console.error(`Usage: npm run demo -- buy <${Object.keys(SCENARIOS).join("|")}>`); process.exit(1); }
@@ -118,5 +128,5 @@ if (cmd === "register") {
   const r = await admin("/api/disputes/import", { paypalDisputeId: arg });
   console.log(r.status === 201 ? `Proposal: ${r.body.decision?.action}\n${r.body.explanation}` : `Failed (${r.status}): ${JSON.stringify(r.body)}`);
 } else {
-  console.log("Usage:\n  npm run demo -- register\n  npm run demo -- link-payment <VAULT_TOKEN_ID>\n  npm run demo -- buy <within|over|category>\n  npm run demo -- buy-auto <within|over|category>\n  npm run demo -- buy-request \"Buy trail running shoes under $120\"\n  npm run demo -- buy-request-auto \"Buy trail running shoes under $120\"\n  npm run demo -- pause [reason]\n  npm run demo -- resume\n  npm run demo -- revoke <MANDATE_ID> [reason]\n  npm run demo -- revoke-payment [reason]\n  npm run demo -- import <PAYPAL_DISPUTE_ID>");
+  console.log("Usage:\n  npm run demo -- register\n  npm run demo -- link-payment <VAULT_TOKEN_ID>\n  npm run demo -- buy <within|over|category>\n  npm run demo -- buy-auto <within|over|category> [holdAboveDollars]\n  npm run demo -- approve-checkout <CART_ID>\n  npm run demo -- decline-checkout <CART_ID> [reason]\n  npm run demo -- list-holds\n  npm run demo -- buy-request \"Buy trail running shoes under $120\"\n  npm run demo -- buy-request-auto \"Buy trail running shoes under $120\"\n  npm run demo -- pause [reason]\n  npm run demo -- resume\n  npm run demo -- revoke <MANDATE_ID> [reason]\n  npm run demo -- revoke-payment [reason]\n  npm run demo -- import <PAYPAL_DISPUTE_ID>");
 }

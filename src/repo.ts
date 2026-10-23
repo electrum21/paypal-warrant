@@ -260,6 +260,60 @@ export function listMandateUses(db: Db, status?: UseStatus): MandateUseRow[] {
   return (rows as any[]).map(useRow);
 }
 
+// ---- Checkout holds: an autonomous purchase over requireApprovalAboveCents, awaiting the user's decision ----
+
+export type HoldStatus = "PENDING" | "APPROVED" | "DECLINED" | "EXPIRED";
+export interface CheckoutHoldRow {
+  cartId: string; mandateId: string; userId: string; amountCents: number; currency: string;
+  checkout: unknown; status: HoldStatus; expiresAt: string; createdAt: string; updatedAt: string;
+}
+const holdRow = (r: any): CheckoutHoldRow => ({
+  cartId: r.cart_id, mandateId: r.mandate_id, userId: r.user_id, amountCents: r.amount_cents, currency: r.currency,
+  checkout: JSON.parse(r.checkout_json), status: r.status,
+  expiresAt: toIso(r.expires_at), createdAt: toIso(r.created_at), updatedAt: toIso(r.updated_at),
+});
+
+/**
+ * Creates a hold, or re-arms one left DECLINED or EXPIRED by an earlier attempt at the same cart id (an APPROVED
+ * hold, meaning the purchase already went through, is never overwritten).
+ */
+export function createCheckoutHold(db: Db, h: {
+  cartId: string; mandateId: string; userId: string; amountCents: number; currency: string; checkout: unknown; expiresAt: string;
+}) {
+  db.prepare(`INSERT INTO checkout_holds (cart_id, mandate_id, user_id, amount_cents, currency, checkout_json, expires_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(cart_id) DO UPDATE SET
+                status = 'PENDING', amount_cents = excluded.amount_cents, currency = excluded.currency,
+                checkout_json = excluded.checkout_json, expires_at = excluded.expires_at, updated_at = datetime('now')
+              WHERE checkout_holds.status IN ('DECLINED', 'EXPIRED')`)
+    .run(h.cartId, h.mandateId, h.userId, h.amountCents, h.currency, JSON.stringify(h.checkout), h.expiresAt);
+}
+
+export function getCheckoutHold(db: Db, cartId: string): CheckoutHoldRow | undefined {
+  const row = db.prepare("SELECT * FROM checkout_holds WHERE cart_id = ?").get(cartId) as any;
+  return row ? holdRow(row) : undefined;
+}
+
+/** Only moves a hold out of PENDING. Returns false if it was already resolved (by a concurrent request, or earlier). */
+export function resolveCheckoutHold(db: Db, cartId: string, status: "APPROVED" | "DECLINED" | "EXPIRED"): boolean {
+  const r = db.prepare("UPDATE checkout_holds SET status = ?, updated_at = datetime('now') WHERE cart_id = ? AND status = 'PENDING'").run(status, cartId);
+  return Number(r.changes) > 0;
+}
+
+/**
+ * Moves a hold back from APPROVED to PENDING after a charge attempt that did not actually complete (PayPal
+ * refused it, or its outcome is unknown) — so it can be approved (safely retried, same idempotency key) or
+ * declined again, instead of being stuck "approved" forever with nothing charged.
+ */
+export function reopenCheckoutHold(db: Db, cartId: string): boolean {
+  const r = db.prepare("UPDATE checkout_holds SET status = 'PENDING', updated_at = datetime('now') WHERE cart_id = ? AND status = 'APPROVED'").run(cartId);
+  return Number(r.changes) > 0;
+}
+
+export function listCheckoutHolds(db: Db, userId: string, status: HoldStatus = "PENDING"): CheckoutHoldRow[] {
+  return (db.prepare("SELECT * FROM checkout_holds WHERE user_id = ? AND status = ? ORDER BY created_at").all(userId, status) as any[]).map(holdRow);
+}
+
 // ---- User controls: revocation and pause ------------------------------------------------------------------
 
 export interface ControlEvent {

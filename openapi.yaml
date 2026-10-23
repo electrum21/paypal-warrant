@@ -58,10 +58,11 @@ paths:
         content:
           application/json: { schema: { $ref: "#/components/schemas/CheckoutRequest" } }
       responses:
-        "201": { description: PayPal order created }
+        "201": { description: PayPal order created (mode "approve"), or charged immediately (mode "autonomous") }
+        "202": { description: 'mode "autonomous" and the amount is over the mandate''s requireApprovalAboveCents: budget is held but not yet charged. See /api/checkouts/{cartId}/approve' }
         "400": { description: Invalid request, or the authorization could not be verified (response lists the problems) }
         "409": { description: Mandate id reused with different content, or the signed cart was already used }
-        "422": { description: Outside the mandate (only when ENFORCE_MANDATE=true) }
+        "422": { description: Outside the mandate (ENFORCE_MANDATE=true, or always in autonomous mode) }
   /api/me/session:
     get:
       security: []
@@ -202,6 +203,58 @@ paths:
       responses:
         "200": { description: User order history }
         "401": { description: Invalid signature }
+  /api/users/{id}/holds:
+    post:
+      security: []
+      description: Lists the user's pending checkout holds (over requireApprovalAboveCents, not yet approved/declined). Auto-expires any whose window has passed.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignedControlBody" }
+      responses:
+        "200": { description: Pending (and recently resolved) checkout holds }
+        "401": { description: Invalid signature }
+  /api/checkouts/{cartId}/approve:
+    post:
+      security: []
+      description: >
+        Charges a held checkout now. Only the user's own signature is accepted (never the admin token).
+        Re-checks revocation, pause and the payment authorization at the moment of approval, not at hold
+        creation.
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignedControlBody" }
+      responses:
+        "201": { description: Charged and recorded }
+        "401": { description: Invalid signature }
+        "403": { description: Admin cannot approve a held checkout }
+        "404": { description: No held checkout with this cart id }
+        "409": { description: Already approved, declined or expired }
+        "422": { description: A live check (revocation, pause, or payment authorization) now fails }
+        "502": { description: PayPal refused the charge, or its outcome is unknown; budget handling matches /api/checkout }
+  /api/checkouts/{cartId}/decline:
+    post:
+      security: []
+      description: Releases a held checkout's reserved budget without charging. The admin token may decline (a stop action), like pause-agent.
+      parameters:
+        - { name: cartId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SignedControlBody" }
+      responses:
+        "200": { description: Declined; held budget released }
+        "401": { description: Invalid signature }
+        "404": { description: No held checkout with this cart id }
+        "409": { description: Already approved, declined or expired }
   /api/users/payment-token:
     post:
       description: Admin-only compatibility route for linking an existing PayPal payment-method token.

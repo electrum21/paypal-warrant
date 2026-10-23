@@ -10,6 +10,7 @@
     { "key": "paypalDisputeId", "value": "" },
     { "key": "userId", "value": "paypal:user-id" },
     { "key": "mandateId", "value": "" },
+    { "key": "cartId", "value": "" },
     { "key": "agentId", "value": "demo-buyer-agent" },
     { "key": "paymentTokenId", "value": "" },
     { "key": "evidenceSecret", "value": "" },
@@ -193,6 +194,33 @@
         "header": [{ "key": "Content-Type", "value": "application/json" }],
         "body": { "mode": "raw", "raw": "{{signedControl}}" },
         "url": "{{baseUrl}}/api/users/{{userId}}/orders"
+      }
+    },
+    {
+      "name": "List pending checkout holds",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{{signedControl}}" },
+        "url": "{{baseUrl}}/api/users/{{userId}}/holds"
+      }
+    },
+    {
+      "name": "Approve held checkout",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{{signedControl}}" },
+        "url": "{{baseUrl}}/api/checkouts/{{cartId}}/approve"
+      }
+    },
+    {
+      "name": "Decline held checkout",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": { "mode": "raw", "raw": "{{signedControl}}" },
+        "url": "{{baseUrl}}/api/checkouts/{{cartId}}/decline"
       }
     },
     {

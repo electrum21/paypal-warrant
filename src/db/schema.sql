@@ -183,6 +183,26 @@ CREATE TABLE IF NOT EXISTS control_events (
 CREATE INDEX IF NOT EXISTS idx_control_user ON control_events(user_id, id);
 CREATE INDEX IF NOT EXISTS idx_control_subject ON control_events(action, subject_id);
 
+-- An autonomous purchase that exceeded the mandate's requireApprovalAboveCents threshold. Budget is already held
+-- in mandate_uses; PayPal is not charged until the user approves it here, or the hold expires.
+--   PENDING   awaiting the user's decision
+--   APPROVED  the user approved it; chargeAndRecord ran (or is running)
+--   DECLINED  the user (or admin) declined it; budget was released
+--   EXPIRED   nobody decided before expires_at; budget was released
+CREATE TABLE IF NOT EXISTS checkout_holds (
+  cart_id TEXT PRIMARY KEY REFERENCES mandate_uses(cart_id),
+  mandate_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  amount_cents INTEGER NOT NULL,
+  currency TEXT NOT NULL,
+  checkout_json TEXT NOT NULL,              -- the validated request needed to resume the charge
+  status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','DECLINED','EXPIRED')),
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_checkout_holds_user ON checkout_holds(user_id, status);
+
 -- What Channel3 said the purchased product was, captured when the order was made (and re-checked at dispute time if missing).
 CREATE TABLE IF NOT EXISTS product_checks (
   order_id INTEGER PRIMARY KEY REFERENCES orders(id),

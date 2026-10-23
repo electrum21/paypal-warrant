@@ -1,6 +1,6 @@
 # Warrant: project overview
 
-*Technical reference for the PayPal AI Hackathon 2026 build. Written 4 October 2026; last updated 18 October 2026.*
+*Technical reference for the PayPal AI Hackathon 2026 build. Written 4 October 2026; last updated 23 October 2026.*
 
 ## 1. What Warrant is
 
@@ -64,9 +64,11 @@ sequenceDiagram
 
 ## 5. The mandate
 
-A deliberately small, **AP2-inspired (not AP2-compliant)** object: id, version, user, agent, plain-English description, currency, `maxAmountCents`, `allowedMerchantIds`, optional `allowedCategories`, `validFrom`, `expiresAt`, and a nonce.
+A deliberately small, **AP2-inspired (not AP2-compliant)** object: id, version, user, agent, plain-English description, currency, `maxAmountCents`, optional `maxTotalAmountCents` and `maxPurchases` (cumulative caps, see §9's `mandate_uses`), optional `requireApprovalAboveCents` (see below), `allowedMerchantIds`, optional `allowedCategories`, `validFrom`, `expiresAt`, and a nonce.
 
-**Signing.** The mandate is serialized as canonical JSON (keys sorted recursively), hashed with SHA-256, and signed with the agent's ed25519 private key. Verification requires both that the hash matches the content and that the signature verifies against the agent's registered public key. Tampering with any field, or using a different key, fails.
+**Signing.** The mandate is serialized as canonical JSON (keys sorted recursively), hashed with SHA-256, and signed with the **user's** ed25519 private key (the agent signs only the cart; see §10). Verification requires both that the hash matches the content and that the signature verifies against the registered public key. Tampering with any field, or using a different key, fails.
+
+**Held checkouts (`requireApprovalAboveCents`).** An autonomous (no-click) purchase is still a purchase nobody looked at before PayPal was charged. A mandate may set `requireApprovalAboveCents`: an autonomous purchase at or under the mandate's hard `maxAmountCents` but *above* this softer threshold is not charged immediately. Instead `POST /api/checkout` reserves the budget (same `mandate_uses` row as a normal autonomous charge) and returns `202 { status: "PENDING_APPROVAL", cartId, expiresAt }`. The user approves or declines it with their own signature (`POST /api/checkouts/:cartId/approve` or `/decline`; the admin token may decline but, like `resume-agent`, may never approve — only the user releases their own money). Approval re-checks revocation, pause, and the payment authorization **at that moment**, not against the state when the hold was created, so a mandate revoked or an agent paused while a hold is pending still blocks the charge. A hold nobody acts on expires after `CHECKOUT_HOLD_MINUTES` (default 30) and releases its held budget. This is independent of `ENFORCE_MANDATE`: a purchase that breaks the hard limit is refused outright in autonomous mode regardless; the hold only concerns purchases that are already within the mandate's limits.
 
 **Purchase check** (`checkPurchase`, no LLM). Returns a list of findings; an empty list means the purchase is within the mandate.
 
@@ -153,14 +155,15 @@ Dispute `workflow_state`: `PROPOSED` → `APPROVED` → `SUBMITTED`, or `FAILED`
 - Merchant routes: need `ADMIN_TOKEN` (constant-time comparison).
 - XSS via mandate text: all dynamic text is set with `textContent`.
 - LLM misbehavior: validated and bounded as in section 7.
+- A mandate's cumulative total (`maxTotalAmountCents`) and purchase count (`maxPurchases`) are checked and enforced, atomically, against the mandate's own usage (`src/mandate/check.ts`'s `checkCumulative`).
+- **User-signed revocation and pause, not just a helper.** `POST /api/mandates/:id/revoke`, `/pause-agent`, `/resume-agent`, and `/revoke-payment` (`src/mandate/control.ts`, wired into `/user`) take effect on the very next checkout or dispute. The merchant admin token may also stop an agent (revoke, pause, revoke payment) but can never restart one — only the user's own signature can resume or approve. Each signed request carries a nonce, used once.
 
 **Not defended or not done**
 - **The user's key is only as trustworthy as its registration.** Warrant checks the mandate against the key registered for the `userId`, but registration is a merchant-admin call (`/api/users`). Nothing here proves that the key belongs to a real person; in production that binding would come from the user's wallet or an identity issuer. In the demo the user's key (`.demo-user.json`) sits on the same machine as the agent's, so the demo shows the checks, not separate custody of the keys.
 - **The purchase category is declared by the agent.** When the signed cart carries a Channel3 `productId` and Channel3 is configured, Warrant now checks Channel3's own category for that product (`src/integrations/channel3.ts`) and treats a confirmed out-of-mandate category as a blocking finding. Carts without a `productId`, or categories Warrant cannot map, are still unverified.
 - `/api/catalog/search` is unauthenticated and not rate limited, so anyone who can reach the server can spend the Channel3 quota. The admin page loads AG Grid from a CDN (major version pinned, not an exact version).
-- Autonomous payment (`mode: "autonomous"`) charges a saved PayPal account with no click. The Vault connection and complete browser-driven checkout were run on the sandbox (`docs/04-autonomous-purchase-spike.md`). The vault token can charge any amount, so the mandate check is the only guard, and it is stored unencrypted in SQLite. The default `approve` mode still uses the click.
-- A mandate's cumulative total (`maxTotalAmountCents`) and purchase count (`maxPurchases`) **are** checked and enforced, atomically, against the mandate's own usage (`src/mandate/check.ts`'s `checkCumulative`). The mandate `nonce` itself is not tracked separately from that usage count.
-- **Revocation** is checked but there is no endpoint for a user to revoke; only the helper `revokeMandate` exists.
+- Autonomous payment (`mode: "autonomous"`) charges a saved PayPal account with no click. The Vault connection and complete browser-driven checkout were run on the sandbox (`docs/04-autonomous-purchase-spike.md`). The vault token can charge any amount, so the mandate's own limits (and, above `requireApprovalAboveCents`, the user's explicit approval) are the only guards; the token is stored unencrypted in SQLite. The default `approve` mode still uses the click. The mandate `nonce` itself is not tracked separately from the cumulative usage count.
+- **A held checkout (`requireApprovalAboveCents`) is only as safe as the user noticing it.** There is no push notification; the user must open `/user` and look at "Pending approvals" before it expires (`CHECKOUT_HOLD_MINUTES`, default 30) and silently releases the budget.
 - Admin token can be passed in the URL query string, which can end up in logs. Fine for a sandbox demo only.
 - Webhook verification re-serializes the parsed JSON rather than forwarding the raw body; likely fine, but confirm in the sandbox.
 - Amount math assumes 2-decimal currencies.
@@ -170,10 +173,12 @@ Dispute `workflow_state`: `PROPOSED` → `APPROVED` → `SUBMITTED`, or `FAILED`
 
 ## 11. Status snapshot (updated 18 October 2026)
 
-**Built and tested (233+ tests passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, sponsor adapters, analytics datasets, and Express routes.
+**Built and tested (246+ tests passing):** mandate signing and checks, decisions, evidence pack, dispute service (propose, approve, retry, reject, escalate, idempotency, blocked proposals), AI validation and fallback, DB schema, scripted buyer agent through the real pipeline with a fake PayPal, sponsor adapters, analytics datasets, Express routes, and the held-checkout approval flow (hold, approve, decline, expiry, live re-checks of revocation/pause/payment at approval time, and concurrent-request races).
 **Run against the PayPal sandbox:** checkout and capture, dispute creation (buyer side), dispute import and matching, the contest path (evidence accepted), the accept-claim path (buyer refunded), the discovery that partial-refund offers are not available for this dispute type, and a complete browser-driven autonomous (no-click) checkout through PayPal Vault. Channel3, Elastic and Zapier were each run live, Zapier through a full two-way evidence loop. The prompt-injection defense was run live against the configured LLM (`npm run smoke:prompt-injection`). The Studio agent's PayPal MCP bridge was run live on Gemini against the real sandbox MCP server (`npm run smoke:gemini-studio-agent`) and, separately, through the real browser chat UI end to end, with no OpenAI account.
 **Deployed:** Render deployment is live (`warrant-9baj.onrender.com`) with the PayPal webhook registered and verifying, and the Studio dashboard shipping pre-built with five charts. A real sandbox dispute (`PP-R-VHE-10193234`) has reached it end to end: the webhook fired, `processDispute` ran with no manual import, and proposed `contest` correctly.
 **Not yet run:** which webhook events fire on dispute *update*/*resolution* (only `CREATED` observed so far), and `make-offer` against a dispute that allows it.
+
+**New finding (23 October 2026, from live-testing the held-checkout flow against the sandbox-backed local server):** charging the saved PayPal Vault token now fails with `403 NOT_AUTHORIZED` / `PERMISSION_DENIED` on `POST /v2/checkout/orders`. This reproduces on the plain, already-shipped autonomous checkout too (no hold involved), so it is a **sandbox-account permission regression, not a bug in the held-checkout feature** — something in the sandbox Business app or account (Vault / reference-transactions permission, per `docs/07` §2 step 5 and §9) has lapsed since the Vault flow was last verified end to end. The held-checkout feature itself handled the live refusal correctly: `202 PENDING_APPROVAL` on hold creation, a clean `200 DECLINED` releasing the budget, and — after a bug this live run surfaced and fixed — a refused or unresolved charge attempt now correctly **reopens** the hold to `PENDING` instead of leaving it stuck "approved" with nothing charged, confirmed against the real sandbox response. The one thing not yet confirmed live is the full happy path (approve → PayPal actually completes the charge), blocked on the permission issue above, not on anything in this feature.
 
 Full results are in `docs/03-testing-and-usage.md`, part K.
 

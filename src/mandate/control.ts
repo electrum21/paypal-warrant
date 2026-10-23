@@ -3,10 +3,14 @@ import { z } from "zod";
 import { canonicalize } from "./sign.js";
 
 /**
- * User-signed control requests: revoke a mandate, pause or resume the user's agent, revoke the saved payment source.
+ * User-signed control requests: revoke a mandate, pause or resume the user's agent, revoke the saved payment
+ * source, or approve/decline a held autonomous checkout.
  * Signed with the USER's key (the one that signs mandates), so the merchant admin token is not the only way to stop an agent.
  */
-export const CONTROL_ACTIONS = ["revoke_mandate", "pause_agent", "resume_agent", "revoke_payment_authorization", "view_orders"] as const;
+export const CONTROL_ACTIONS = [
+  "revoke_mandate", "pause_agent", "resume_agent", "revoke_payment_authorization", "view_orders",
+  "approve_checkout", "decline_checkout",
+] as const;
 export type ControlAction = (typeof CONTROL_ACTIONS)[number];
 
 export const ControlRequest = z.object({

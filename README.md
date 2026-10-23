@@ -4,7 +4,7 @@
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178c6?logo=typescript&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-233%2B%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-246%2B%20passing-brightgreen)
 ![PayPal Sandbox](https://img.shields.io/badge/PayPal-Sandbox-003087?logo=paypal&logoColor=white)
 ![Deployed on Render](https://img.shields.io/badge/deployed-Render-46E3B7?logo=render&logoColor=white)
 
@@ -50,7 +50,7 @@ https://github.com/user-attachments/assets/4edf31d9-f7df-4e50-a40c-a0344bb7f7b8
 
 ## What's real here
 
-- **233+ automated tests**, plus live runs against the real PayPal sandbox: order creation and capture,
+- **246+ automated tests**, plus live runs against the real PayPal sandbox: order creation and capture,
   dispute creation and import, the contest and accept-claim response paths, a live webhook that turns
   a real sandbox dispute into a correct proposal with **zero manual steps**, and a complete
   browser-driven autonomous (no-click) checkout through PayPal Vault.
@@ -63,6 +63,16 @@ https://github.com/user-attachments/assets/4edf31d9-f7df-4e50-a40c-a0344bb7f7b8
   server and against the real browser chat UI, including building its own dashboard charts.
 - **Deployed, not just "deployable.**" Render, with a persistent disk, a registered PayPal webhook, and
   a real sandbox dispute that has already round-tripped through it end to end.
+- **A middle ground between full agent autonomy and a buyer's click.** A mandate can set
+  `requireApprovalAboveCents`: an autonomous purchase within the mandate's hard limit but above that
+  softer threshold is held, not charged — the user approves or declines it from `/user` before PayPal
+  is ever hit. Approval re-checks revocation, pause and the saved payment method at that moment, and an
+  unanswered hold expires and releases its held budget. **Run live against the sandbox-backed server:**
+  holding a purchase, declining it, and (found and fixed from that live run) correctly reopening a hold
+  for retry when a charge attempt comes back refused or unresolved, instead of getting stuck "approved"
+  with nothing charged. The live run also surfaced that charging a saved sandbox Vault token is
+  currently refused (`403 NOT_AUTHORIZED`) — a sandbox-account permission issue that predates this
+  feature and affects the already-shipped plain autonomous checkout too; see `docs/01` §11.
 
 Full verification log, with dates and exact observed PayPal responses: `docs/03-testing-and-usage.md`
 part K.
@@ -91,7 +101,7 @@ never by the model, and sit at the top of every note.
 ```
 npm install
 cp .env.example .env     # add PayPal SANDBOX credentials
-npm test                 # no credentials needed, 233+ tests
+npm test                 # no credentials needed, 246+ tests
 npm run db:init
 npm run smoke:auth       # confirms your keys work
 npm run smoke:order      # creates a sandbox order and prints an approval link

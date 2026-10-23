@@ -13,6 +13,10 @@ export const Mandate = z.object({
   maxTotalAmountCents: z.number().int().positive().optional(),
   /** How many purchases this mandate may fund. Autonomous checkout treats an unset value as 1 (single use). */
   maxPurchases: z.number().int().positive().optional(),
+  /** Above this amount, an AUTONOMOUS (no-click) purchase is held for the user's explicit approval instead of
+   * being charged immediately. Signed by the user, so the agent cannot raise or remove it. Has no effect on
+   * "approve"-mode checkout, where the buyer already approves every purchase on PayPal. */
+  requireApprovalAboveCents: z.number().int().positive().optional(),
   allowedMerchantIds: z.array(z.string()).min(1),
   allowedCategories: z.array(z.string()).optional(),
   validFrom: z.string(),                         // ISO 8601

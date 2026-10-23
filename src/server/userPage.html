@@ -44,9 +44,11 @@ pre{background:#10233f;color:#e8f1ff;padding:13px;border-radius:8px;overflow:aut
 <div><label>Number of purchases</label><input id="count" type="number" value="1" min="1"></div></div>
 <div class="row"><div><label>What kind of item?</label><input id="cat" value="footwear"></div>
 <div><label>Permission lasts (hours)</label><input id="hours" type="number" value="24" min="1"></div></div>
+<label>Ask me first above this amount ($, optional)</label><input id="holdThreshold" type="number" min="1" placeholder="Never ask - charge immediately">
+<small>Below this, your agent shops with no click at all. Above it, a purchase waits here for you to approve or decline before PayPal is ever charged.</small>
 <details><summary>Advanced options</summary><div class="row"><div><label>Approved merchant</label><input id="merchant" value="warrant-demo-merchant"></div>
 <div><label>Shopping agent</label><input id="agent" value="demo-buyer-agent"></div></div></details>
-<div class="permission"><b>Your agent will be allowed to:</b><ul><li>Buy <span id="summaryDesc">trail running shoes</span></li><li>Spend up to $<span id="summaryMax">120</span> per purchase</li><li>Make <span id="summaryCount">1</span> purchase<span id="summaryPlural"></span></li><li>Use this permission for <span id="summaryHours">24</span> hours</li></ul></div>
+<div class="permission"><b>Your agent will be allowed to:</b><ul><li>Buy <span id="summaryDesc">trail running shoes</span></li><li>Spend up to $<span id="summaryMax">120</span> per purchase</li><li>Make <span id="summaryCount">1</span> purchase<span id="summaryPlural"></span></li><li>Use this permission for <span id="summaryHours">24</span> hours</li><li id="summaryHoldLi" hidden>Ask you first above $<span id="summaryHold">0</span></li></ul></div>
 <button id="sign" class="ok">Review permission</button>
 <button id="startShopping" class="start">Authorize and start shopping</button>
 <details class="technical"><summary>Technical details</summary><label>Signed authorization</label><textarea id="signed" rows="3" readonly placeholder="Your signed permission will appear here"></textarea></details></div>
@@ -63,6 +65,7 @@ pre{background:#10233f;color:#e8f1ff;padding:13px;border-radius:8px;overflow:aut
 <div class="row"><input id="mid" placeholder="Permission ID"><button id="revoke" class="stop" style="flex:0 0 auto">Cancel permission</button></div>
 </details></div>
 
+<div class="card"><h2>Pending approvals</h2><p><small>A purchase over your "ask me first" amount waits here instead of charging immediately.</small></p><div id="holds" class="orders"><small>Nothing pending.</small></div><button id="loadHolds" class="plain">Refresh pending approvals</button></div>
 <div class="card"><h2>Activity</h2><pre id="log">Nothing yet.</pre></div>
 <div class="card"><h2>Agent capabilities</h2><p><small>These services make the agent more useful, observable, and accountable. They run behind the scenes while Warrant remains the payment safety layer.</small></p><div id="capabilities" class="capabilities"><div class="capability"><b>Channel3</b><small>Finds real products, and lets the merchant verify what was actually bought.</small><em>Checking...</em></div><div class="capability"><b>Elastic</b><small>Finds similar past disputes so the merchant sees how they ended.</small><em>Checking...</em></div><div class="capability"><b>Zapier</b><small>Alerts the merchant, and brings missing evidence such as delivery proof back to Warrant.</small><em>Checking...</em></div><div class="capability"><b>AG Grid</b><small>Gives the merchant a searchable dispute workbench.</small><em>Available in merchant view</em></div></div></div>
 <div class="card"><h2>Purchases</h2><p><small>Signed purchases appear here after your agent submits checkout.</small></p><div id="orders" class="orders"><small>No purchases loaded.</small></div><button id="loadOrders" class="plain">Refresh purchases</button></div>
@@ -108,6 +111,9 @@ function updateSummary() {
   $("summaryCount").textContent = $("count").value || "1";
   $("summaryPlural").textContent = Number($("count").value || 1) === 1 ? "" : "s";
   $("summaryHours").textContent = $("hours").value || "24";
+  const hold = $("holdThreshold").value.trim();
+  $("summaryHoldLi").hidden = !hold;
+  if (hold) $("summaryHold").textContent = Number(hold).toFixed(2);
 }
 const log = (label, status, body) => {
   const line = new Date().toLocaleTimeString() + "  " + label + (status ? "  [" + status + "]" : "") + (body ? "\n" + JSON.stringify(body, null, 1) : "");
@@ -217,6 +223,7 @@ async function createPermission() {
     description: $("desc").value, currency: "USD", maxAmountCents: dollars($("max").value),
     maxTotalAmountCents: $("total").value ? dollars($("total").value) : undefined,
     maxPurchases: $("count").value ? Number($("count").value) : undefined,
+    requireApprovalAboveCents: $("holdThreshold").value.trim() ? dollars($("holdThreshold").value) : undefined,
     allowedMerchantIds: [$("merchant").value.trim()], allowedCategories: [$("cat").value.trim()],
     validFrom: new Date(now - 60000).toISOString(), expiresAt: new Date(now + Number($("hours").value) * 3600000).toISOString(),
     nonce: crypto.randomUUID(),
@@ -254,7 +261,7 @@ async function authorizeAndShop() {
     && p.merchantId === merchantId && p.category === $("cat").value.trim());
   if (!product) { log("Find a matching product", 422, { error: "No product matched this permission." }); return; }
   const count = Math.max(1, Number(signedMandate.mandate.maxPurchases || 1));
-  let completed = 0, failed = 0;
+  let completed = 0, failed = 0, pending = 0;
   for (let i = 0; i < count; i++) {
     const cart = await signCart(agentKey.jwk, {
       cartId: "cart-" + crypto.randomUUID(), mandateId: signedMandate.mandate.id, mandateHash: signedMandate.mandateHash,
@@ -265,11 +272,13 @@ async function authorizeAndShop() {
       signedMandate, signedCart: cart, mode: "autonomous",
       purchase: { amountCents: product.amountCents, currency: product.currency, category: product.category, description: product.description },
     });
-    if (checkout.status < 400) completed++; else { failed++; log("Purchase " + (i + 1) + " of " + count, checkout.status, checkout.body); break; }
     log("Purchase " + (i + 1) + " of " + count, checkout.status, checkout.body);
+    if (checkout.status === 202) { pending++; break; }            // waits here for approval; stop trying to spend more of the budget
+    if (checkout.status < 400) completed++; else { failed++; break; }
   }
-  log("Authorize and start shopping", failed ? 422 : 201, { requested: count, completed, failed });
+  log("Authorize and start shopping", failed ? 422 : pending ? 202 : 201, { requested: count, completed, failed, pending });
   showOrders(await getOrders(user));
+  if (pending) showHolds(await getHolds(user));
 }
 async function getOrders(id) {
   const request = { action: "view_orders", userId: id.userId, subjectId: id.userId, issuedAt: new Date().toISOString(), nonce: crypto.randomUUID() };
@@ -309,6 +318,38 @@ async function loadOrders() {
   if (r.status >= 400) { log("Refresh purchases", r.status, r.body); return; }
   showOrders(r.body); log("Refresh purchases", r.status, { count: r.body.length });
 }
+async function getHolds(id) {
+  const request = { action: "view_orders", userId: id.userId, subjectId: id.userId, issuedAt: new Date().toISOString(), nonce: crypto.randomUUID() };
+  const r = await post("/api/users/" + encodeURIComponent(id.userId) + "/holds", { signedControl: await signControl(id.jwk, request) });
+  return r.status < 400 ? r.body : [];
+}
+function showHolds(rows) {
+  const el = $("holds"); el.textContent = "";
+  if (!rows.length) { const empty = document.createElement("small"); empty.textContent = "Nothing pending."; el.append(empty); return; }
+  rows.forEach(h => {
+    const item = document.createElement("div"); item.className = "order";
+    const title = document.createElement("strong"); title.textContent = (Number(h.amountCents) / 100).toFixed(2) + " " + h.currency + " - waiting for you";
+    const meta = document.createElement("small"); meta.textContent = "Expires " + new Date(h.expiresAt).toLocaleString() + " | cart " + h.cartId;
+    const approve = document.createElement("button"); approve.className = "ok"; approve.textContent = "Approve";
+    approve.onclick = guard(() => decideHold(h.cartId, "approve"));
+    const decline = document.createElement("button"); decline.className = "stop"; decline.textContent = "Decline";
+    decline.onclick = guard(() => decideHold(h.cartId, "decline"));
+    item.append(title, meta, approve, decline); el.append(item);
+  });
+}
+async function decideHold(cartId, verb) {
+  const id = need(); if (!id) return;
+  const request = { action: verb + "_checkout", userId: id.userId, subjectId: cartId, issuedAt: new Date().toISOString(), nonce: crypto.randomUUID() };
+  const r = await post("/api/checkouts/" + encodeURIComponent(cartId) + "/" + verb, { signedControl: await signControl(id.jwk, request) });
+  log(verb === "approve" ? "Approve purchase" : "Decline purchase", r.status, r.body);
+  showHolds(await getHolds(id));
+  if (r.status < 400) showOrders(await getOrders(id));
+}
+async function loadHolds() {
+  const id = need(); if (!id) return;
+  showHolds(await getHolds(id));
+  log("Refresh pending approvals", 200, { count: $("holds").children.length });
+}
 const uid = () => (load() || {}).userId || $("userId").value.trim();
 $("pause").onclick = guard(() => control("/api/users/" + encodeURIComponent(uid()) + "/pause-agent", "pause_agent", uid(), "Pause my agent"));
 $("resume").onclick = guard(() => control("/api/users/" + encodeURIComponent(uid()) + "/resume-agent", "resume_agent", uid(), "Resume my agent"));
@@ -316,11 +357,12 @@ $("revpay").onclick = guard(() => control("/api/users/" + encodeURIComponent(uid
 $("revoke").onclick = guard(() => { const m = $("mid").value.trim(); if (!m) { log("Enter a mandate id."); return; }
   return control("/api/mandates/" + encodeURIComponent(m) + "/revoke", "revoke_mandate", m, "Cancel spending rule " + m); });
 $("loadOrders").onclick = guard(loadOrders);
+$("loadHolds").onclick = guard(loadHolds);
 $("startShopping").onclick = guard(async () => {
   const button = $("startShopping"); button.disabled = true;
   try { await authorizeAndShop(); } finally { button.disabled = false; }
 });
-["desc", "max", "count", "hours"].forEach(id => $(id).addEventListener("input", updateSummary));
+["desc", "max", "count", "hours", "holdThreshold"].forEach(id => $(id).addEventListener("input", updateSummary));
 updateSummary();
 showKey();
 loadSession().catch(e => log("Could not check PayPal sign-in: " + (e && e.message || e)));
