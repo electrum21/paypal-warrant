@@ -131,6 +131,21 @@ function showKey() {
   const id = load();
   $("keystate").firstChild.textContent = id ? "Key ready for \"" + id.userId + "\". Public key starts: " + id.pem.split("\n")[1].slice(0, 24) + "..." : "No key yet. Create one first.";
 }
+async function loadCapabilities() {
+  const r = await fetch("/health");
+  if (!r.ok) throw new Error("Could not load agent capabilities.");
+  const data = await r.json(), integrations = data.integrations || {};
+  const values = [
+    ["Channel3", Boolean(integrations.channel3), "Connected", "Using local catalog fallback"],
+    ["Elastic", Boolean(integrations.elastic), "Connected", "No similar-case search"],
+    ["Zapier", Boolean(integrations.zapier), "Connected", "No merchant notifications configured"],
+  ];
+  const cards = [...$("capabilities").children];
+  values.forEach((v, i) => {
+    cards[i].classList.toggle("off", !v[1]);
+    cards[i].querySelector("em").textContent = v[1] ? v[2] : v[3];
+  });
+}
 async function loadSession() {
   const r = await fetch("/api/me/session");
   const user = r.ok ? await r.json() : null;
@@ -138,21 +153,6 @@ async function loadSession() {
     $("authstate").textContent = "Sign in with PayPal to create and manage your shopping permissions.";
     $("signIn").hidden = false;
     return null;
-  }
-  async function loadCapabilities() {
-    const r = await fetch("/health");
-    if (!r.ok) throw new Error("Could not load agent capabilities.");
-    const data = await r.json(), integrations = data.integrations || {};
-    const values = [
-      ["Channel3", Boolean(integrations.channel3), "Connected", "Using local catalog fallback"],
-      ["Elastic", Boolean(integrations.elastic), "Connected", "No similar-case search"],
-      ["Zapier", Boolean(integrations.zapier), "Connected", "No merchant notifications configured"],
-    ];
-    const cards = [...$("capabilities").children];
-    values.forEach((v, i) => {
-      cards[i].classList.toggle("off", !v[1]);
-      cards[i].querySelector("em").textContent = v[1] ? v[2] : v[3];
-    });
   }
   $("userId").value = user.userId;
   // Agent ids are owned by whoever registers them first, so default to one that is unique to this user.
